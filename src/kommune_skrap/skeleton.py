@@ -26,8 +26,8 @@ import sys
 
 from kommune_skrap import __version__
 
-__author__ = "Ã…smund Frantzen Skomedal"
-__copyright__ = "Ã…smund Frantzen Skomedal"
+__author__ = "Åsmund Frantzen Skomedal"
+__copyright__ = "Åsmund Frantzen Skomedal"
 __license__ = "MIT"
 
 _logger = logging.getLogger(__name__)

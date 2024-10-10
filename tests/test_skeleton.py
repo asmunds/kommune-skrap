@@ -2,8 +2,8 @@ import pytest
 
 from kommune_skrap.skeleton import fib, main
 
-__author__ = "Ã…smund Frantzen Skomedal"
-__copyright__ = "Ã…smund Frantzen Skomedal"
+__author__ = "Åsmund Frantzen Skomedal"
+__copyright__ = "Åsmund Frantzen Skomedal"
 __license__ = "MIT"
 
 

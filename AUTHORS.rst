@@ -2,4 +2,4 @@
 Contributors
 ============
 
-* Ã…smund Frantzen Skomedal <asmund.frantzen.skomedal@aenergi.no>
+* Åsmund Frantzen Skomedal <asmund.frantzen.skomedal@aenergi.no>
