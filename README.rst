@@ -9,7 +9,7 @@ kommune-skrap
 =============
 
 
-    This is a library for skraping data from municipality web pages in Norway.
+    A library for skraping data from municipality web pages in Norway.
 
 
 
