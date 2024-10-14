@@ -1,13 +1,8 @@
+import os
+
 import requests
-from bs4 import BeautifulSoup
 from selenium import webdriver
-from selenium.common.exceptions import (
-    NoAlertPresentException,
-    UnexpectedAlertPresentException,
-)
-from selenium.webdriver.common.action_chains import ActionChains
 from selenium.webdriver.common.by import By
-from selenium.webdriver.support import expected_conditions as EC
 from selenium.webdriver.support.ui import WebDriverWait
 
 __author__ = "Åsmund Frantzen Skomedal"
@@ -17,87 +12,86 @@ __license__ = "MIT"
 # URL = r"https://politiskagenda.kristiansand.kommune.no/?request.kriterie.udvalgId=355a0ec6-ac1f-4e76-8ad4-3ab898841838&request.kriterie.moedeDato=2024"
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
 
+DOWNLOAD_DIR = "../data/"  # Directory to save downloaded PDF files
 
-def main(url: str) -> None:
-    """Use beatifulsoup to scrape kommune data from the given url."""
+
+def download_pdf(url, download_dir):
+    """Download a PDF file from the given URL to the specified directory.
+
+    Args:
+        url (str): URL to the PDF file.
+        download_dir (str): Directory to save the PDF file.
+    """
     response = requests.get(url)
     if response.status_code == 200:
-        soup = BeautifulSoup(response.content, "html.parser")
-        # utvalg = soup.find(id='udvalg')
-        # search_button = soup.find(id='searchButton')
-        # resultater_div = soup.find(id='resultater')
+        filename = os.path.join(download_dir, url.split("/")[-1])
+        with open(filename, "wb") as f:
+            f.write(response.content)
+        print(f"Downloaded: {filename}")
+    else:
+        print(f"Failed to download: {url}")
 
+
+def main(url: str) -> None:
+    """Use beatifulsoup to scrape kommune data from the given url.
+
+    Args:
+        url (str): URL to scrape data from.
+    """
+    # Create download directory if it doesn't exist (check if parent directory exists)
+    if not os.path.exists(DOWNLOAD_DIR):
+        os.makedirs(DOWNLOAD_DIR, parents=False)
+
+    response = requests.get(url)
+    if response.status_code == 200:
         # Initialize Selenium WebDriver (make sure to have the appropriate driver installed)
-        driver = webdriver.Firefox()  # or webdriver.Firefox(), etc.
-        driver.get(URL)  # Replace with the actual URL
+        driver = webdriver.Firefox()
+        driver.get(URL)
 
         # Wait until the dropdown is present
         wait = WebDriverWait(driver, 10)
-        dropdown = wait.until(
-            EC.visibility_of_element_located((By.ID, "multidropdown"))
-        )
 
-        # # Print the list of options available in the dropdown
-        # options = driver.execute_script("""
-        #     var dropdown = document.getElementById('multidropdown');
-        #     return Array.from(dropdown.children).map(child => child.textContent);
-        # """)
-        # print("Options available in the dropdown before insertion:")
-        # for option in options:
-        #     print(option)
-
-        # Use ActionChains to interact with the dropdown
-        actions = ActionChains(driver)
-        actions.move_to_element(dropdown).click().perform()
-
-        # Select the parent option 'Valgperioden 2023-2027'
-        parent_option = wait.until(
-            EC.visibility_of_element_located(
-                (
-                    By.XPATH,
-                    "//div[@class='dropdown-item' and text()='Valgperioden 2023-2027']",
-                )
-            )
-        )
-        actions.move_to_element(parent_option).click().perform()
-
-        # Select the suboption 'Areal- og miljøutvalget'
-        sub_option = wait.until(
-            EC.visibility_of_element_located(
-                (
-                    By.XPATH,
-                    "//div[@class='dropdown-item' and text()='Areal- og miljøutvalget']",
-                )
-            )
-        )
-        actions.move_to_element(sub_option).click().perform()
-
-        # Enable and click the search button
-        search_button = driver.find_element(By.ID, "searchButton")
-        driver.execute_script("arguments[0].removeAttribute('disabled')", search_button)
-        search_button.click()
-
-        # Handle unexpected alerts and wait for the results
-        try:
-            wait.until(EC.presence_of_element_located((By.ID, "resultater")))
-        except UnexpectedAlertPresentException:
-            try:
-                alert = driver.switch_to.alert
-                alert.dismiss()
-            except NoAlertPresentException:
-                pass
-            wait.until(EC.presence_of_element_located((By.ID, "resultater")))
-
-        # Explicitly wait for the results to be visible
-        wait.until(EC.visibility_of_element_located((By.ID, "resultater")))
+        # Prompt the user for input to continue or exit
+        user_input = input("\nMake relevant search, then press enter").strip().lower()
 
         # Get the results
         resultater = driver.find_element(By.ID, "resultater")
-        print(resultater.text)
 
-        # Prompt the user for input to continue or exit
-        user_input = input("Continue?").strip().lower()
-        print("Exiting the program.")
+        # Find all links in the resultater table
+        links = resultater.find_elements(By.TAG_NAME, "a")
+
+        # Click on each link to enter a new web page
+        for link in links:
+            link.click()
+
+            # Wait until the new page is loaded
+            wait.until(lambda driver: driver.current_url != URL)
+            wait.until(lambda driver: driver.find_element(By.TAG_NAME, "body"))
+            # Wait until the number of links is greater than 2
+            wait.until(lambda driver: len(driver.find_elements(By.TAG_NAME, "a")) > 2)
+
+            # Find and click all '+' signs to reveal hidden data
+            plus_signs = driver.find_elements(
+                By.CSS_SELECTOR, "span.glyphicon.glyphicon-plus[aria-hidden='true']"
+            )
+            for plus_sign in plus_signs:
+                plus_sign.click()
+
+                # Enter the relevant links
+                new_page_links = driver.find_elements(By.TAG_NAME, "a")
+                for new_link in new_page_links:
+                    new_href = new_link.get_attribute("href")
+                    if (
+                        new_href
+                        and new_href.endswith("Pdf=false")
+                        and "Link til sak" in new_link.text
+                    ):
+                        print(new_href)
+                        break
+
+            # Add any additional scraping or processing logic here
+            driver.back()  # Go back to the previous page to continue with the next link
+            break
 
         # Close the driver
         driver.quit()
