@@ -78,8 +78,11 @@ def main(url: str) -> None:
         # Find all links in the resultater table
         links = resultater.find_elements(By.TAG_NAME, "a")
 
-        # Click on each link to enter a new web page
+        # Loop through all links to find the relevant data
         for link in links:
+            # Get the URL of the current page
+            link_url = link.get_attribute("href")
+            # Click on the link to enter a new web page
             link.click()
 
             # Wait until the new page is loaded
@@ -117,23 +120,22 @@ def main(url: str) -> None:
                             and new_href.endswith("Pdf=false")
                             and "Link til sak" in new_link.text
                         ):
-                            # Open the pdf link in a new window/tab
-                            new_link.click()
+                            # Modify the URL to replace "Pdf=false" with "Pdf=true"
+                            pdf_url = new_href.replace("Pdf=false", "Pdf=true")
 
-                            # Switch to the new window/tab
+                            # Open the pdf link in a new tab
+                            driver.execute_script("window.open();")
                             driver.switch_to.window(driver.window_handles[-1])
+                            driver.get(pdf_url)
 
                             # Wait until the PDF is loaded
-                            wait.until(
-                                lambda driver: driver.current_url.endswith("Pdf=false")
-                            )
+                            wait.until(lambda driver: driver.current_url != link_url)
 
-                            # Get the URL of the PDF
-                            pdf_url = driver.current_url
-
-                            # Download the PDF
+                            # Download the PDF file
                             download_pdf(
-                                pdf_url, DOWNLOAD_DIR, section_title.replace("/", "_")
+                                pdf_url,
+                                DOWNLOAD_DIR,
+                                new_filename=section_title.replace("/", "_"),
                             )
 
                             # Close the PDF window/tab and switch back to the original window/tab
@@ -143,9 +145,6 @@ def main(url: str) -> None:
             # Add any additional scraping or processing logic here
             driver.back()  # Go back to the previous page to continue with the next link
             break
-
-        # Close the driver
-        driver.quit()
 
     else:
         print(f"Failed to retrieve the URL: {url}, status code: {response.status_code}")
