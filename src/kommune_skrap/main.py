@@ -12,12 +12,12 @@ __license__ = "MIT"
 # URL = r"https://politiskagenda.kristiansand.kommune.no/?request.kriterie.udvalgId=355a0ec6-ac1f-4e76-8ad4-3ab898841838&request.kriterie.moedeDato=2024"
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
 
-DOWNLOAD_DIR = "../data/"  # Directory to save downloaded PDF files
+DOWNLOAD_DIR = "./data/"  # Directory to save downloaded PDF files
 
 KEYWORDS = ["dispensasjon", "søknad"]  # Keywords to search for in the scraped data
 
 
-def download_pdf(url, download_dir):
+def download_pdf(url, download_dir, new_filename: str):
     """Download a PDF file from the given URL to the specified directory.
 
     Args:
@@ -26,12 +26,28 @@ def download_pdf(url, download_dir):
     """
     response = requests.get(url)
     if response.status_code == 200:
-        filename = os.path.join(download_dir, url.split("/")[-1])
-        with open(filename, "wb") as f:
+        filepath = os.path.join(download_dir, new_filename + ".pdf")
+        with open(filepath, "wb") as f:
             f.write(response.content)
-        print(f"Downloaded: {filename}")
+        print(f"Downloaded: {new_filename}.pdf")
     else:
-        print(f"Failed to download: {url}")
+        print(f"Failed to download: {new_filename}.pdf")
+
+
+def identify_keyword(section_title, keywords):
+    """Identify which keyword is present in the section title.
+
+    Args:
+        section_title (str): The title of the section.
+        keywords (list): List of keywords to search for.
+
+    Returns:
+        str or None: The keyword found in the section title, or None if no keyword is found.
+    """
+    for keyword in keywords:
+        if keyword in section_title.lower():
+            return keyword
+    return None
 
 
 def main(url: str) -> None:
@@ -72,8 +88,6 @@ def main(url: str) -> None:
             # Wait until the number of links is greater than 2
             wait.until(lambda driver: len(driver.find_elements(By.TAG_NAME, "a")) > 2)
 
-            page_links = driver.find_elements(By.TAG_NAME, "a")
-
             # Find and click all '+' signs to reveal hidden data
             plus_signs = driver.find_elements(
                 By.CSS_SELECTOR, "span.glyphicon.glyphicon-plus[aria-hidden='true']"
@@ -86,7 +100,10 @@ def main(url: str) -> None:
                     By.XPATH,
                     "./ancestor::tr/td[2]/button/h2[contains(@class, 'overskrift')]",
                 ).text
-                if any(keyword in section_title.lower() for keyword in KEYWORDS):
+
+                # Use the identify_keyword function to check for keywords in the section title
+                keyword_found = identify_keyword(section_title, KEYWORDS)
+                if keyword_found:
                     # Get the new links that have appeared after clicking the plus sign
                     # Find links that are located in this row of the table
                     subpage_links = plus_sign.find_elements(
@@ -100,18 +117,24 @@ def main(url: str) -> None:
                             and new_href.endswith("Pdf=false")
                             and "Link til sak" in new_link.text
                         ):
-                            print(f"Section Title: {section_title}")
+                            # Open the pdf link in a new window/tab
                             new_link.click()
-                            # Wait until the new page is loaded
-                            wait.until(lambda driver: driver.current_url != URL)
+
                             # Switch to the new window/tab
                             driver.switch_to.window(driver.window_handles[-1])
+
+                            # Wait until the PDF is loaded
+                            wait.until(
+                                lambda driver: driver.current_url.endswith("Pdf=false")
+                            )
 
                             # Get the URL of the PDF
                             pdf_url = driver.current_url
 
                             # Download the PDF
-                            download_pdf(pdf_url, DOWNLOAD_DIR)
+                            download_pdf(
+                                pdf_url, DOWNLOAD_DIR, section_title.replace("/", "_")
+                            )
 
                             # Close the PDF window/tab and switch back to the original window/tab
                             driver.close()
