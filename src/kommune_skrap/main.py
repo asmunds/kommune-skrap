@@ -1,4 +1,5 @@
 import os
+from pathlib import Path
 
 import requests
 from selenium import webdriver
@@ -12,12 +13,12 @@ __license__ = "MIT"
 
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
 
-DOWNLOAD_DIR = "./data/"  # Directory to save downloaded PDF files
+DOWNLOAD_DIR = Path("./data/")  # Directory to save downloaded PDF files
 
 KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 
-def download_pdf(*, url, download_dir, new_filename: str):
+def download_pdf(*, url, download_dir: Path, new_filename: str):
     """Download a PDF file from the given URL to the specified directory.
 
     Args:
@@ -26,7 +27,7 @@ def download_pdf(*, url, download_dir, new_filename: str):
     """
     response = requests.get(url)
     if response.status_code == 200:
-        filepath = os.path.join(download_dir, new_filename + ".pdf")
+        filepath = download_dir / new_filename + ".pdf")
         with open(filepath, "wb") as f:
             f.write(response.content)
         print(f"Downloaded: {new_filename}.pdf")
@@ -84,11 +85,12 @@ def main(url: str) -> None:
             link_url = link.get_attribute("href")
             # Get the date of the current page
             date_text = link.find_element(By.CLASS_NAME, "col-sm-3").text
+            date_text = date_text.replace("/", ".")
 
             # Click on the link to enter a new web page
             driver.execute_script("window.open();")
             driver.switch_to.window(driver.window_handles[-1])
-            link.click()
+            driver.get(link_url)
 
             # Wait until the new page is loaded
             wait.until(lambda driver: driver.current_url != URL)
@@ -138,10 +140,15 @@ def main(url: str) -> None:
                             # Wait until the PDF is loaded
                             wait.until(lambda driver: driver.current_url != link_url)
 
+                            # Make download directory if it doesn't exist
+                            download_dir = DOWNLOAD_DIR / date_text
+                            if not download_dir.exists():
+                                download_dir.mkdir(parents=False)
+
                             # Download the PDF file
                             download_pdf(
                                 url=pdf_url,
-                                download_dir=DOWNLOAD_DIR + "/" + date_text,
+                                download_dir=download_dir,
                                 new_filename=section_title.replace("/", "_"),
                             )
 
