@@ -27,7 +27,7 @@ def download_pdf(*, url, download_dir: Path, new_filename: str):
     """
     response = requests.get(url)
     if response.status_code == 200:
-        filepath = download_dir / new_filename + ".pdf")
+        filepath = download_dir / (new_filename + ".pdf")
         with open(filepath, "wb") as f:
             f.write(response.content)
         print(f"Downloaded: {new_filename}.pdf")
@@ -105,7 +105,9 @@ def main(url: str) -> None:
             for plus_sign in plus_signs:
                 plus_sign.click()
 
-                # Get the title of the section where this plus sign is located
+            # Loop through all the rows in the table to find the relevant data
+            for row in driver.find_elements(By.XPATH, "//table/tbody/tr"):
+                # Get the title of the current row
                 section_title = plus_sign.find_element(
                     By.XPATH,
                     "./ancestor::tr/td[2]/button/h2[contains(@class, 'overskrift')]",
@@ -121,13 +123,20 @@ def main(url: str) -> None:
                     subpage_links = plus_sign.find_elements(
                         By.XPATH, "./ancestor::tr//a"
                     )
+                    subpage_links_dict = [
+                        {
+                            "href": l.get_attribute("href"),
+                            "text": l.text,
+                        }
+                        for l in subpage_links
+                    ]
                     # Loop through the new links to find the one that contains the PDF
-                    for new_link in subpage_links:
-                        new_href = new_link.get_attribute("href")
+                    for subpage_link in subpage_links_dict:
+                        new_href = subpage_link.get("href")
                         if (
                             new_href
                             and new_href.endswith("Pdf=false")
-                            and "Link til sak" in new_link.text
+                            and "Link til sak" in subpage_link.get("text")
                         ):
                             # Modify the URL to replace "Pdf=false" with "Pdf=true"
                             pdf_url = new_href.replace("Pdf=false", "Pdf=true")
