@@ -9,15 +9,15 @@ __author__ = "Åsmund Frantzen Skomedal"
 __copyright__ = "Åsmund Frantzen Skomedal"
 __license__ = "MIT"
 
-# URL = r"https://politiskagenda.kristiansand.kommune.no/?request.kriterie.udvalgId=355a0ec6-ac1f-4e76-8ad4-3ab898841838&request.kriterie.moedeDato=2024"
+
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
 
 DOWNLOAD_DIR = "./data/"  # Directory to save downloaded PDF files
 
-KEYWORDS = ["dispensasjon", "søknad"]  # Keywords to search for in the scraped data
+KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 
-def download_pdf(url, download_dir, new_filename: str):
+def download_pdf(*, url, download_dir, new_filename: str):
     """Download a PDF file from the given URL to the specified directory.
 
     Args:
@@ -34,7 +34,7 @@ def download_pdf(url, download_dir, new_filename: str):
         print(f"Failed to download: {new_filename}.pdf")
 
 
-def identify_keyword(section_title, keywords):
+def identify_keyword(*, section_title, keywords):
     """Identify which keyword is present in the section title.
 
     Args:
@@ -70,7 +70,7 @@ def main(url: str) -> None:
         wait = WebDriverWait(driver, 10)
 
         # Prompt the user for input to continue or exit
-        user_input = input("\nMake relevant search, then press enter").strip().lower()
+        input("\nMake relevant search, then press enter").strip().lower()
 
         # Get the results
         resultater = driver.find_element(By.ID, "resultater")
@@ -82,7 +82,12 @@ def main(url: str) -> None:
         for link in links:
             # Get the URL of the current page
             link_url = link.get_attribute("href")
+            # Get the date of the current page
+            date_text = link.find_element(By.CLASS_NAME, "col-sm-3").text
+
             # Click on the link to enter a new web page
+            driver.execute_script("window.open();")
+            driver.switch_to.window(driver.window_handles[-1])
             link.click()
 
             # Wait until the new page is loaded
@@ -105,7 +110,9 @@ def main(url: str) -> None:
                 ).text
 
                 # Use the identify_keyword function to check for keywords in the section title
-                keyword_found = identify_keyword(section_title, KEYWORDS)
+                keyword_found = identify_keyword(
+                    section_title=section_title, keywords=KEYWORDS
+                )
                 if keyword_found:
                     # Get the new links that have appeared after clicking the plus sign
                     # Find links that are located in this row of the table
@@ -133,18 +140,15 @@ def main(url: str) -> None:
 
                             # Download the PDF file
                             download_pdf(
-                                pdf_url,
-                                DOWNLOAD_DIR,
+                                url=pdf_url,
+                                download_dir=DOWNLOAD_DIR + "/" + date_text,
                                 new_filename=section_title.replace("/", "_"),
                             )
 
                             # Close the PDF window/tab and switch back to the original window/tab
                             driver.close()
-                            driver.switch_to.window(driver.window_handles[0])
 
-            # Add any additional scraping or processing logic here
-            driver.back()  # Go back to the previous page to continue with the next link
-            break
+            driver.close()  # Close this window
 
     else:
         print(f"Failed to retrieve the URL: {url}, status code: {response.status_code}")
