@@ -1,3 +1,25 @@
+"""
+This module provides functionality to scrape and download PDF files from a specified URL.
+It uses Selenium to interact with the web page and Requests to download the files.
+Author:
+    Åsmund Frantzen Skomedal
+Copyright:
+    Åsmund Frantzen Skomedal
+License:
+    MIT
+Constants:
+    URL (str): The URL to scrape data from.
+    DOWNLOAD_DIR (Path): The directory to save downloaded PDF files.
+    KEYWORDS (list): List of keywords to search for in the scraped data.
+Functions:
+    download_pdf(*, url, download_dir: Path, new_filename: str):
+        Download a PDF file from the given URL to the specified directory.
+    identify_keyword(*, section_title, keywords):
+        Identify which keyword is present in the section title.
+    main(url: str) -> None:
+        Use Selenium to scrape kommune data from the given URL.
+"""
+
 import os
 from pathlib import Path
 
@@ -6,15 +28,8 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-__author__ = "Åsmund Frantzen Skomedal"
-__copyright__ = "Åsmund Frantzen Skomedal"
-__license__ = "MIT"
-
-
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
-
 DOWNLOAD_DIR = Path("./data/")  # Directory to save downloaded PDF files
-
 KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 
@@ -78,14 +93,18 @@ def main(url: str) -> None:
 
         # Find all links in the resultater table
         links = resultater.find_elements(By.TAG_NAME, "a")
+        link_data_list = [
+            {
+                "url": link.get_attribute("href"),
+                "date": link.find_element(By.CLASS_NAME, "col-sm-3").text,
+            }
+            for link in links
+        ]
 
         # Loop through all links to find the relevant data
-        for link in links:
-            # Get the URL of the current page
-            link_url = link.get_attribute("href")
-            # Get the date of the current page
-            date_text = link.find_element(By.CLASS_NAME, "col-sm-3").text
-            date_text = date_text.replace("/", ".")
+        for link_data in link_data_list:
+            link_url = link_data.get("url")
+            date_text = link_data.get("date").replace("/", ".")
 
             # Click on the link to enter a new web page
             driver.execute_script("window.open();")
@@ -105,12 +124,17 @@ def main(url: str) -> None:
             for plus_sign in plus_signs:
                 plus_sign.click()
 
+            # Find table called dagsordenDetaljer
+            dagsorden_detaljer = driver.find_element(By.ID, "dagsordenDetaljer")
+
+            # Get all the rows in tbody of dagsordenDetaljer
+            rows = dagsorden_detaljer.find_elements(By.XPATH, ".//tbody/tr")
+
             # Loop through all the rows in the table to find the relevant data
-            for row in driver.find_elements(By.XPATH, "//table/tbody/tr"):
-                # Get the title of the current row
-                section_title = plus_sign.find_element(
-                    By.XPATH,
-                    "./ancestor::tr/td[2]/button/h2[contains(@class, 'overskrift')]",
+            for row in rows:
+                # Get the header of the current row
+                section_title = row.find_element(
+                    By.XPATH, ".//h2[contains(@class, 'overskrift')]"
                 ).text
 
                 # Use the identify_keyword function to check for keywords in the section title
@@ -120,15 +144,13 @@ def main(url: str) -> None:
                 if keyword_found:
                     # Get the new links that have appeared after clicking the plus sign
                     # Find links that are located in this row of the table
-                    subpage_links = plus_sign.find_elements(
-                        By.XPATH, "./ancestor::tr//a"
-                    )
+                    subpage_links = row.find_elements(By.XPATH, ".//a")
                     subpage_links_dict = [
                         {
-                            "href": l.get_attribute("href"),
-                            "text": l.text,
+                            "href": link.get_attribute("href"),
+                            "text": link.text,
                         }
-                        for l in subpage_links
+                        for link in subpage_links
                     ]
                     # Loop through the new links to find the one that contains the PDF
                     for subpage_link in subpage_links_dict:
@@ -163,8 +185,10 @@ def main(url: str) -> None:
 
                             # Close the PDF window/tab and switch back to the original window/tab
                             driver.close()
+                            driver.switch_to.window(driver.window_handles[-1])
 
             driver.close()  # Close this window
+            driver.switch_to.window(driver.window_handles[0])
 
     else:
         print(f"Failed to retrieve the URL: {url}, status code: {response.status_code}")
