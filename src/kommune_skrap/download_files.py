@@ -77,17 +77,24 @@ def main(url: str) -> None:
         os.makedirs(DOWNLOAD_DIR, parents=False)
 
     response = requests.get(url)
-    if response.status_code == 200:
-        # Initialize Selenium WebDriver (make sure to have the appropriate driver installed)
-        driver = webdriver.Firefox()
-        driver.get(URL)
+    if response.status_code != 200:
+        print(f"Failed to retrieve the URL: {url}, status code: {response.status_code}")
+        return
 
-        # Wait until the dropdown is present
-        wait = WebDriverWait(driver, 10)
+    # Initialize Selenium WebDriver (make sure to have the appropriate driver installed)
+    driver = webdriver.Firefox()
+    driver.get(URL)
 
-        # Prompt the user for input to continue or exit
-        input("\nMake relevant search, then press enter").strip().lower()
+    # Wait until the dropdown is present
+    wait = WebDriverWait(driver, 10)
 
+    # Prompt the user for input to continue or exit
+    while (
+        input('\nMake relevant search, then press enter. Write "exit" when done. ')
+        .strip()
+        .lower()
+        != "exit"
+    ):
         # Get the results
         resultater = driver.find_element(By.ID, "resultater")
 
@@ -189,9 +196,6 @@ def main(url: str) -> None:
 
             driver.close()  # Close this window
             driver.switch_to.window(driver.window_handles[0])
-
-    else:
-        print(f"Failed to retrieve the URL: {url}, status code: {response.status_code}")
 
 
 if __name__ == "__main__":
