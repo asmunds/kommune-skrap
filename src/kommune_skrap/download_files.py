@@ -21,6 +21,7 @@ Functions:
 """
 
 import os
+import pickle
 from pathlib import Path
 
 import requests
@@ -92,25 +93,43 @@ def main(url: str) -> None:
     all_link_data_list = []
 
     # Prompt the user for input to continue or exit
-    while (
-        input('\nMake relevant search, then press enter. Write "done" when done... ')
-        .strip()
-        .lower()
-        != "done"
-    ):
-        # Get the results
-        resultater = driver.find_element(By.ID, "resultater")
+    go_on = True
+    while go_on:
+        input_string = (
+            input(
+                "Make relevant search, then press enter to add links.\n"
+                "Write load to load the list from the pickle file.\n"
+                'Write "done" when done...\n'
+            )
+            .strip()
+            .lower()
+        )
+        if input_string == "done":
+            go_on = False
+        elif input_string == "load":
+            # Load the list from the pickle file
+            with open(DOWNLOAD_DIR / "all_link_data_list.pkl", "rb") as f:
+                all_link_data_list = pickle.load(f)
+            print("Loaded the list from the pickle file.")
+            go_on = False
+        else:
+            # Get the results
+            resultater = driver.find_element(By.ID, "resultater")
 
-        # Find all links in the resultater table
-        links = resultater.find_elements(By.TAG_NAME, "a")
-        link_data_list = [
-            {
-                "url": link.get_attribute("href"),
-                "date": link.find_element(By.CLASS_NAME, "col-sm-3").text,
-            }
-            for link in links
-        ]
-        all_link_data_list.extend(link_data_list)
+            # Find all links in the resultater table
+            links = resultater.find_elements(By.TAG_NAME, "a")
+            link_data_list = [
+                {
+                    "url": link.get_attribute("href"),
+                    "date": link.find_element(By.CLASS_NAME, "col-sm-3").text,
+                }
+                for link in links
+            ]
+            all_link_data_list.extend(link_data_list)
+
+        # Dump list to a pickle file for later use
+        with open(DOWNLOAD_DIR / "all_link_data_list.pkl", "wb") as f:
+            pickle.dump(all_link_data_list, f)
 
     # Loop through all links to find the relevant data
     for link_data in all_link_data_list:
@@ -171,32 +190,35 @@ def main(url: str) -> None:
                         and new_href.endswith("Pdf=false")
                         and "Link til sak" in subpage_link.get("text")
                     ):
-                        # Modify the URL to replace "Pdf=false" with "Pdf=true"
-                        pdf_url = new_href.replace("Pdf=false", "Pdf=true")
+                        try:
+                            # Modify the URL to replace "Pdf=false" with "Pdf=true"
+                            pdf_url = new_href.replace("Pdf=false", "Pdf=true")
 
-                        # Open the pdf link in a new tab
-                        driver.execute_script("window.open();")
-                        driver.switch_to.window(driver.window_handles[-1])
-                        driver.get(pdf_url)
+                            # Open the pdf link in a new tab
+                            driver.execute_script("window.open();")
+                            driver.switch_to.window(driver.window_handles[-1])
+                            driver.get(pdf_url)
 
-                        # Wait until the PDF is loaded
-                        wait.until(lambda driver: driver.current_url != link_url)
+                            # Wait until the PDF is loaded
+                            wait.until(lambda driver: driver.current_url != link_url)
 
-                        # Make download directory if it doesn't exist
-                        download_dir = DOWNLOAD_DIR / date_text
-                        if not download_dir.exists():
-                            download_dir.mkdir(parents=False)
+                            # Make download directory if it doesn't exist
+                            download_dir = DOWNLOAD_DIR / date_text
+                            if not download_dir.exists():
+                                download_dir.mkdir(parents=False)
 
-                        # Download the PDF file
-                        download_pdf(
-                            url=pdf_url,
-                            download_dir=download_dir,
-                            new_filename=section_title.replace("/", "_"),
-                        )
-
-                        # Close the PDF window/tab and switch back to the original window/tab
-                        driver.close()
-                        driver.switch_to.window(driver.window_handles[-1])
+                            # Download the PDF file
+                            download_pdf(
+                                url=pdf_url,
+                                download_dir=download_dir,
+                                new_filename=section_title.replace("/", "_"),
+                            )
+                        except Exception as e:
+                            print(f"Failed to download PDF: {pdf_url}, error: {e}")
+                        finally:
+                            # Close the PDF window/tab and switch back to the original window/tab
+                            driver.close()
+                            driver.switch_to.window(driver.window_handles[-1])
 
         driver.close()  # Close this window
         driver.switch_to.window(driver.window_handles[0])
