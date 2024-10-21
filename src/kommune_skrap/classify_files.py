@@ -100,7 +100,7 @@ def train_model(training_data, tokenizer):
 
     # Evaluate the model
     eval_results = trainer.evaluate()
-    print(f"Validation Accuracy: {eval_results['eval_accuracy']:.4f}")
+    print(f"Validation Loss(?): {eval_results['eval_loss']:.4f}")
 
     return model
 
