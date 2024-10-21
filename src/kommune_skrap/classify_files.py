@@ -4,13 +4,29 @@ from pathlib import Path
 
 import fitz  # PyMuPDF
 import pandas as pd
+import torch
 from sklearn.model_selection import train_test_split
+from torch.utils.data import Dataset
 from transformers import (
     DistilBertForSequenceClassification,
     DistilBertTokenizer,
     Trainer,
     TrainingArguments,
 )
+
+
+class CustomDataset(Dataset):
+    def __init__(self, encodings, labels):
+        self.encodings = encodings
+        self.labels = labels
+
+    def __len__(self):
+        return len(self.labels)
+
+    def __getitem__(self, idx):
+        item = {key: torch.tensor(val[idx]) for key, val in self.encodings.items()}
+        item["labels"] = torch.tensor(self.labels[idx])
+        return item
 
 
 def extract_text_from_pdf(pdf_path):
@@ -53,8 +69,12 @@ def train_model(training_data, tokenizer):
         encodings["input_ids"], labels, test_size=0.2
     )
 
-    train_dataset = {"input_ids": train_texts, "labels": train_labels}
-    val_dataset = {"input_ids": val_texts, "labels": val_labels}
+    train_encodings = {"input_ids": train_texts}
+    val_encodings = {"input_ids": val_texts}
+
+    # Convert to correct dataset type
+    train_dataset = CustomDataset(train_encodings, train_labels)
+    val_dataset = CustomDataset(val_encodings, val_labels)
 
     model = DistilBertForSequenceClassification.from_pretrained(
         "distilbert-base-uncased"
@@ -73,6 +93,7 @@ def train_model(training_data, tokenizer):
         args=training_args,
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
+        tokenizer=tokenizer,
     )
 
     trainer.train()
