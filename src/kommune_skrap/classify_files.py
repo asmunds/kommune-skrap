@@ -39,7 +39,7 @@ def extract_text_from_pdf(pdf_path):
     return text
 
 
-def load_training_set(labels_file):
+def load_training_set(labels_file: Path) -> list:
     """Create a training set from PDF files and labels."""
     df = pd.read_csv(labels_file)
     training_data = []
@@ -55,11 +55,26 @@ def load_training_set(labels_file):
     return training_data
 
 
-def train_model(training_data, tokenizer):
+def train_model(training_data, tokenizer: DistilBertTokenizer):
     """Train a model using the training data."""
 
     texts, labels = zip(*training_data)
     labels = [1 if label == "innvilget" else 0 for label in labels]
+
+    # Add presence keywords to tokenizer
+    new_tokens = [
+        "godkjent",
+        "innvilget",
+        "avslått",
+        "godkjenning",
+        "avslag",
+        "utsatt",
+        "søknaden innvilges",
+        "søknaden gokjennes",
+        "søknaden avslås",
+        "søknaden utsettes",
+    ]
+    tokenizer.add_tokens(new_tokens)
 
     # Tokenisering
     encodings = tokenizer(list(texts), truncation=True, padding=True)
@@ -76,9 +91,12 @@ def train_model(training_data, tokenizer):
     train_dataset = CustomDataset(train_encodings, train_labels)
     val_dataset = CustomDataset(val_encodings, val_labels)
 
+    # Train the model
     model = DistilBertForSequenceClassification.from_pretrained(
         "distilbert-base-uncased"
     )
+
+    model.resize_token_embeddings(len(tokenizer))
 
     training_args = TrainingArguments(
         output_dir="./results",
