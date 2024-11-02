@@ -68,7 +68,7 @@ def identify_keyword(*, section_title, keywords):
 
 
 def main(url: str) -> None:
-    """Use beatifulsoup to scrape kommune data from the given url.
+    """Use selenium to scrape kommune data from the given url.
 
     Args:
         url (str): URL to scrape data from.
