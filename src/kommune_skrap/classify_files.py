@@ -16,6 +16,8 @@ from transformers import (
     TrainingArguments,
 )
 
+from kommune_skrap.translator import load_translation_model, translate_text
+
 
 class CustomDataset(Dataset):
     def __init__(self, encodings, labels):
@@ -47,25 +49,31 @@ def compute_metrics(pred: EvalPrediction) -> dict:
     }
 
 
-def extract_text_from_pdf(pdf_path: Path) -> str:
-    """Extract text from a PDF file."""
+def extract_text_from_pdf(
+    pdf_path: Path, translator_model, translator_tokenizer
+) -> str:
+    """Extract text from a PDF file and translate."""
     doc = fitz.open(pdf_path)
     text = ""
     for page in doc:
         text += page.get_text()
+        break  # Decision is usually on the first page
     doc.close()
-    return text
+    translated_text = translate_text(text, translator_model, translator_tokenizer)
+    return translated_text
 
 
 def load_training_set(labels_file: Path) -> list:
     """Create a training set from PDF files and labels."""
     df = pd.read_csv(labels_file)
     training_data = []
-
+    translator_model, translator_tokenizer = load_translation_model()
     for index, row in df.iterrows():
         pdf_path = Path(row["filename"])
         if pdf_path.exists():
-            text = extract_text_from_pdf(pdf_path)
+            text = extract_text_from_pdf(
+                pdf_path, translator_model, translator_tokenizer
+            )
             training_data.append((text, row["label"]))
         else:
             print(f"Warning: {pdf_path} not found.")
@@ -90,7 +98,10 @@ def get_tokenizer(training_data, tokenizer: DistilBertTokenizer):
         "søknaden avslås",
         "søknaden utsettes",
     ]
-    tokenizer.add_tokens(new_tokens)
+    translator_model, translator_tokenizer = load_translation_model()
+    for token in new_tokens:
+        translated_token = translate_text(token, translator_model, translator_tokenizer)
+        tokenizer.add_tokens([translated_token])
 
     # Tokenisering
     encodings = tokenizer(list(texts), truncation=True, padding=True)
@@ -154,7 +165,11 @@ def train_model(training_data, tokenizer: DistilBertTokenizer):
 
     # Evaluate the model
     eval_results = trainer.evaluate()
-    print(f"Validation Loss(?): {eval_results['eval_loss']:.4f}")
+    print(f"Validation Loss: {eval_results['eval_loss']:.4f}")
+    print(f"Validation Accuracy: {eval_results['eval_accuracy']:.4f}")
+    print(f"Validation Precision: {eval_results['eval_precision']:.4f}")
+    print(f"Validation Recall: {eval_results['eval_recall']:.4f}")
+    print(f"Validation F1 Score: {eval_results['eval_f1']:.4f}")
 
     return model
 
@@ -219,14 +234,15 @@ if __name__ == "__main__":
     labels_file = data_folder / "training_data/labels.csv"
     tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
     training_data = load_training_set(labels_file)
-    # model = train_model(training_data, tokenizer=tokenizer)
-    # predict_all_files(model, tokenizer, data_folder)
+    model = train_model(training_data, tokenizer=tokenizer)
+    predict_all_files(model, tokenizer, data_folder)
 
-    tokenizer, encodings = get_tokenizer(
-        training_data=training_data, tokenizer=tokenizer
-    )
-    train_dataset, val_dataset = get_train_val_datasets(
-        encodings=encodings, training_data=training_data
-    )
-    model, tokenizer = load_model_and_tokenizer(model_dir="./results/checkpoint-18")
-    evaluate_loaded_model(model, tokenizer, eval_dataset=val_dataset)
+    # # Load model and evaluate
+    # tokenizer, encodings = get_tokenizer(
+    #     training_data=training_data, tokenizer=tokenizer
+    # )
+    # train_dataset, val_dataset = get_train_val_datasets(
+    #     encodings=encodings, training_data=training_data
+    # )
+    # model, tokenizer = load_model_and_tokenizer(model_dir="./results/checkpoint-18")
+    # evaluate_loaded_model(model, tokenizer, eval_dataset=val_dataset)
