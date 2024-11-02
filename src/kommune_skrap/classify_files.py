@@ -5,11 +5,13 @@ from pathlib import Path
 import fitz  # PyMuPDF
 import pandas as pd
 import torch
+from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
 from transformers import (
     DistilBertForSequenceClassification,
     DistilBertTokenizer,
+    EvalPrediction,
     Trainer,
     TrainingArguments,
 )
@@ -29,7 +31,23 @@ class CustomDataset(Dataset):
         return item
 
 
-def extract_text_from_pdf(pdf_path):
+def compute_metrics(pred: EvalPrediction) -> dict:
+    """Computes and returns various evaluation metrics for the given predictions."""
+    labels = pred.label_ids
+    preds = pred.predictions.argmax(-1)
+    precision, recall, f1, _ = precision_recall_fscore_support(
+        labels, preds, average="binary"
+    )
+    acc = accuracy_score(labels, preds)
+    return {
+        "accuracy": acc,
+        "precision": precision,
+        "recall": recall,
+        "f1": f1,
+    }
+
+
+def extract_text_from_pdf(pdf_path: Path) -> str:
     """Extract text from a PDF file."""
     doc = fitz.open(pdf_path)
     text = ""
@@ -55,11 +73,9 @@ def load_training_set(labels_file: Path) -> list:
     return training_data
 
 
-def train_model(training_data, tokenizer: DistilBertTokenizer):
-    """Train a model using the training data."""
-
+def get_tokenizer(training_data, tokenizer: DistilBertTokenizer):
+    """Get a tokenizer and encodings for the training data."""
     texts, labels = zip(*training_data)
-    labels = [1 if label == "innvilget" else 0 for label in labels]
 
     # Add presence keywords to tokenizer
     new_tokens = [
@@ -79,6 +95,14 @@ def train_model(training_data, tokenizer: DistilBertTokenizer):
     # Tokenisering
     encodings = tokenizer(list(texts), truncation=True, padding=True)
 
+    return tokenizer, encodings
+
+
+def get_train_val_datasets(encodings, training_data):
+    """Get training and validation datasets from encodings and labels."""
+    texts, labels = zip(*training_data)
+    labels = [1 if label == "innvilget" else 0 for label in labels]
+
     # Split data
     train_texts, val_texts, train_labels, val_labels = train_test_split(
         encodings["input_ids"], labels, test_size=0.2
@@ -90,6 +114,17 @@ def train_model(training_data, tokenizer: DistilBertTokenizer):
     # Convert to correct dataset type
     train_dataset = CustomDataset(train_encodings, train_labels)
     val_dataset = CustomDataset(val_encodings, val_labels)
+
+    return train_dataset, val_dataset
+
+
+def train_model(training_data, tokenizer: DistilBertTokenizer):
+    """Train a model using the training data."""
+
+    tokenizer, encodings = get_tokenizer(training_data=training_data)
+    train_dataset, val_dataset = get_train_val_datasets(
+        encodings=encodings, training_data=training_data
+    )
 
     # Train the model
     model = DistilBertForSequenceClassification.from_pretrained(
@@ -112,6 +147,7 @@ def train_model(training_data, tokenizer: DistilBertTokenizer):
         train_dataset=train_dataset,
         eval_dataset=val_dataset,
         tokenizer=tokenizer,
+        compute_metrics=compute_metrics,
     )
 
     trainer.train()
@@ -121,6 +157,38 @@ def train_model(training_data, tokenizer: DistilBertTokenizer):
     print(f"Validation Loss(?): {eval_results['eval_loss']:.4f}")
 
     return model
+
+
+def load_model_and_tokenizer(
+    model_dir: Path,
+) -> tuple[DistilBertForSequenceClassification, DistilBertTokenizer]:
+    """Load a trained model and tokenizer from a directory."""
+    model = DistilBertForSequenceClassification.from_pretrained(model_dir)
+    tokenizer = DistilBertTokenizer.from_pretrained(model_dir)
+    return model, tokenizer
+
+
+def evaluate_loaded_model(model, tokenizer, eval_dataset) -> None:
+    """Evaluate the loaded model using the evaluation dataset."""
+    training_args = TrainingArguments(
+        output_dir="./results",
+        per_device_eval_batch_size=8,
+    )
+
+    trainer = Trainer(
+        model=model,
+        args=training_args,
+        eval_dataset=eval_dataset,
+        tokenizer=tokenizer,
+        compute_metrics=compute_metrics,
+    )
+
+    eval_results = trainer.evaluate()
+    print(f"Validation Loss: {eval_results['eval_loss']:.4f}")
+    print(f"Validation Accuracy: {eval_results['eval_accuracy']:.4f}")
+    print(f"Validation Precision: {eval_results['eval_precision']:.4f}")
+    print(f"Validation Recall: {eval_results['eval_recall']:.4f}")
+    print(f"Validation F1 Score: {eval_results['eval_f1']:.4f}")
 
 
 def predict_label(model, tokenizer, pdf_path):
@@ -150,6 +218,15 @@ if __name__ == "__main__":
     data_folder = Path("./data")
     labels_file = data_folder / "training_data/labels.csv"
     tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-    training_set = load_training_set(labels_file)
-    model = train_model(training_set, tokenizer=tokenizer)
-    predict_all_files(model, tokenizer, data_folder)
+    training_data = load_training_set(labels_file)
+    # model = train_model(training_data, tokenizer=tokenizer)
+    # predict_all_files(model, tokenizer, data_folder)
+
+    tokenizer, encodings = get_tokenizer(
+        training_data=training_data, tokenizer=tokenizer
+    )
+    train_dataset, val_dataset = get_train_val_datasets(
+        encodings=encodings, training_data=training_data
+    )
+    model, tokenizer = load_model_and_tokenizer(model_dir="./results/checkpoint-18")
+    evaluate_loaded_model(model, tokenizer, eval_dataset=val_dataset)
