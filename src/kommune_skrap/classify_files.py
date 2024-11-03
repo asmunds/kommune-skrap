@@ -1,10 +1,12 @@
 """Train model and classify text in PDF files."""
 
+import re
 from pathlib import Path
 
 import fitz  # PyMuPDF
 import pandas as pd
 import torch
+from googletrans import Translator
 from sklearn.metrics import accuracy_score, precision_recall_fscore_support
 from sklearn.model_selection import train_test_split
 from torch.utils.data import Dataset
@@ -15,8 +17,6 @@ from transformers import (
     Trainer,
     TrainingArguments,
 )
-
-from kommune_skrap.translator import load_translation_model, translate_text
 
 
 class CustomDataset(Dataset):
@@ -49,32 +49,53 @@ def compute_metrics(pred: EvalPrediction) -> dict:
     }
 
 
-def extract_text_from_pdf(
-    pdf_path: Path, translator_model, translator_tokenizer
-) -> str:
-    """Extract text from a PDF file and translate."""
+def clean_text(text: str) -> str:
+    """Remove everything but normal text, punctuation, and Nordic letters from a string."""
+    # Remove common formatting operators
+    text = re.sub(r"\n|\t|\r", " ", text)
+    # Remove everything but normal text, punctuation, and Nordic letters
+    text = re.sub(r"[^a-zA-Z0-9\s.,!?;:æøåÆØÅ]", "", text)
+    # Remove excess spaces
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
+def extract_text_from_pdf(pdf_path: Path) -> str:
+    """Extract text from a PDF file."""
     doc = fitz.open(pdf_path)
     text = ""
     for page in doc:
         text += page.get_text()
         break  # Decision is usually on the first page
     doc.close()
-    translated_text = translate_text(text, translator_model, translator_tokenizer)
-    return translated_text
+
+    text = clean_text(text)
+
+    # # Find and emphasize the first sentence after "vedtak:"
+    # vedtak_index = text.lower().find("vedtak:")
+    # if vedtak_index != -1:
+    #     after_vedtak = text[vedtak_index + len("vedtak:") :].strip()
+    #     first_sentence_end = after_vedtak.find(".")
+    #     if first_sentence_end != -1:
+    #         first_sentence = after_vedtak[: first_sentence_end + 1].strip()
+    #         # Emphasize the first sentence by appending it to the beginning
+    #         text = first_sentence + " " + text
+
+    return text
 
 
 def load_training_set(labels_file: Path) -> list:
     """Create a training set from PDF files and labels."""
     df = pd.read_csv(labels_file)
     training_data = []
-    translator_model, translator_tokenizer = load_translation_model()
+    # Initialize the translator
+    translator = Translator()
     for index, row in df.iterrows():
         pdf_path = Path(row["filename"])
         if pdf_path.exists():
-            text = extract_text_from_pdf(
-                pdf_path, translator_model, translator_tokenizer
-            )
-            training_data.append((text, row["label"]))
+            text = extract_text_from_pdf(pdf_path)
+            translated_text = translator.translate(text, src="no", dest="en").text
+            training_data.append((translated_text, row["label"]))
         else:
             print(f"Warning: {pdf_path} not found.")
 
@@ -97,10 +118,14 @@ def get_tokenizer(training_data, tokenizer: DistilBertTokenizer):
         "søknaden gokjennes",
         "søknaden avslås",
         "søknaden utsettes",
+        "saken utsettes",
+        "saken innvilges",
+        "saken avslås",
+        "saken godkjennes",
     ]
-    translator_model, translator_tokenizer = load_translation_model()
+    translator = Translator()
     for token in new_tokens:
-        translated_token = translate_text(token, translator_model, translator_tokenizer)
+        translated_token = translator.translate(token, src="no", dest="en").text
         tokenizer.add_tokens([translated_token])
 
     # Tokenisering
@@ -132,7 +157,9 @@ def get_train_val_datasets(encodings, training_data):
 def train_model(training_data, tokenizer: DistilBertTokenizer):
     """Train a model using the training data."""
 
-    tokenizer, encodings = get_tokenizer(training_data=training_data)
+    tokenizer, encodings = get_tokenizer(
+        training_data=training_data, tokenizer=tokenizer
+    )
     train_dataset, val_dataset = get_train_val_datasets(
         encodings=encodings, training_data=training_data
     )
@@ -220,7 +247,7 @@ def predict_all_files(model, tokenizer, data_folder: Path):
     predictions = []
     for subfolder in data_folder.iterdir():
         if subfolder.is_dir() and subfolder.name != "training_data":
-            print("\n", subfolder.name)
+            # print(subfolder.name)
             for pdf_path in subfolder.iterdir():
                 if pdf_path.exists() and pdf_path.suffix == ".pdf":
                     label = predict_label(model, tokenizer, pdf_path)

@@ -8,4 +8,4 @@ selenium
 scikit-learn
 transformers[torch]
 pymupdf
-sentencepiece
+googletrans-modified
