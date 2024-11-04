@@ -71,15 +71,20 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
 
     text = clean_text(text)
 
-    # # Find and emphasize the first sentence after "vedtak:"
-    # vedtak_index = text.lower().find("vedtak:")
-    # if vedtak_index != -1:
-    #     after_vedtak = text[vedtak_index + len("vedtak:") :].strip()
-    #     first_sentence_end = after_vedtak.find(".")
-    #     if first_sentence_end != -1:
-    #         first_sentence = after_vedtak[: first_sentence_end + 1].strip()
-    #         # Emphasize the first sentence by appending it to the beginning
-    #         text = first_sentence + " " + text
+    # Find and emphasize the first sentence after "vedtak:"
+    vedtak_index = text.lower().find("vedtak:")
+    f_vedtak_index = text.lower().find("forslag til vedtak")
+    if vedtak_index != -1:
+        after_vedtak = text[vedtak_index + len("vedtak:") :].strip()
+    elif f_vedtak_index != -1:
+        after_vedtak = text[f_vedtak_index + len("forslag til vedtak") :].strip()
+    else:
+        return text
+    first_sentence_end = after_vedtak.find(".")
+    if first_sentence_end != -1:
+        first_sentence = after_vedtak[: first_sentence_end + 1].strip()
+        # Emphasize the first sentence by appending it to the beginning
+        text = first_sentence + " " + text
 
     return text
 
@@ -108,20 +113,23 @@ def get_tokenizer(training_data, tokenizer: DistilBertTokenizer):
 
     # Add presence keywords to tokenizer
     new_tokens = [
-        "godkjent",
-        "innvilget",
-        "avslått",
-        "godkjenning",
-        "avslag",
-        "utsatt",
-        "søknaden innvilges",
-        "søknaden gokjennes",
-        "søknaden avslås",
-        "søknaden utsettes",
-        "saken utsettes",
-        "saken innvilges",
-        "saken avslås",
-        "saken godkjennes",
+        "godkjenner",
+        "innvilger",
+        "avslår",
+        "gir dispensasjon",
+        "gir medhold",
+        "avslår søknad",
+        "godkjenner søknad",
+        "opprettholder",
+        "godkjenner dispensasjoner",
+        "gir medhold",
+        "innvilger dispensasjoner",
+        "gir tiltakshaver dispensasjoner",
+        "klagen fra søker tas til følge",
+        "klagen fra tiltakshaver tas til følge",
+        "tas ikke til følge",
+        "vedtar søknad",
+        "gir tillatelse til å dispensere",
     ]
     translator = Translator()
     for token in new_tokens:
