@@ -16,11 +16,17 @@ def assess_predictions(labels_file, prediction_file):
     training_df = pd.read_csv(labels_file)
     list_correct = []
     training_data = []
+    dates = [
+        datetime.strptime(Path(pdf_path).parts[-2], "%d.%m-%Y").date()
+        for pdf_path in predictions_df["filename"]
+    ]
+    predictions_df["date"] = dates
+    predictions_df = predictions_df.sort_values(by="date", ascending=False)
     for _, row in predictions_df.iterrows():
         if row["filename"] in training_df["filename"].values:
             continue
         pdf_path = Path(row["filename"])
-        date = datetime.strptime(pdf_path.parts[1], "%d.%m-%Y").date()
+
         if pdf_path.exists():
             # Open pdf file for user to see
             webbrowser.open(pdf_path.absolute().as_uri())
@@ -40,7 +46,7 @@ def assess_predictions(labels_file, prediction_file):
                 list_correct.append(True)
             else:
                 list_correct.append(False)
-            training_data.append((pdf_path, decision, date))
+            training_data.append((pdf_path, decision, row["date"]))
         else:
             print(f"Warning: {pdf_path} not found.")
     new_training_df = pd.DataFrame(training_data, columns=["filename", "label", "date"])
