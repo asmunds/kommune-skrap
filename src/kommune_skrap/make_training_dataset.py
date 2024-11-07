@@ -22,6 +22,8 @@ def create_training_set(data_folder: Path, labels_file: Path):
         if subfolder.is_dir():
             print("\n", subfolder.name)
             date = datetime.strptime(subfolder.name, "%d.%m-%Y")
+            # if date < datetime.now() - pd.DateOffset(weeks=1):
+            #     continue
             for pdf_path in subfolder.iterdir():
                 if (
                     pdf_path.exists()

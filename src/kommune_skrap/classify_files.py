@@ -71,20 +71,20 @@ def extract_text_from_pdf(pdf_path: Path) -> str:
 
     text = clean_text(text)
 
-    # Find and emphasize the first sentence after "vedtak:"
-    vedtak_index = text.lower().find("vedtak:")
-    f_vedtak_index = text.lower().find("forslag til vedtak")
-    if vedtak_index != -1:
-        after_vedtak = text[vedtak_index + len("vedtak:") :].strip()
-    elif f_vedtak_index != -1:
-        after_vedtak = text[f_vedtak_index + len("forslag til vedtak") :].strip()
-    else:
-        return text
-    first_sentence_end = after_vedtak.find(".")
-    if first_sentence_end != -1:
-        first_sentence = after_vedtak[: first_sentence_end + 1].strip()
-        # Emphasize the first sentence by appending it to the beginning
-        text = first_sentence + " " + text
+    # # Find and emphasize the first sentence after "vedtak:"
+    # vedtak_index = text.lower().find("vedtak:")
+    # f_vedtak_index = text.lower().find("forslag til vedtak")
+    # if vedtak_index != -1:
+    #     after_vedtak = text[vedtak_index + len("vedtak:") :].strip()
+    # elif f_vedtak_index != -1:
+    #     after_vedtak = text[f_vedtak_index + len("forslag til vedtak") :].strip()
+    # else:
+    #     return text
+    # first_sentence_end = after_vedtak.find(".")
+    # if first_sentence_end != -1:
+    #     first_sentence = after_vedtak[: first_sentence_end + 1].strip()
+    #     # Emphasize the first sentence by appending it to the beginning
+    #     text = first_sentence + " " + text
 
     return text
 
