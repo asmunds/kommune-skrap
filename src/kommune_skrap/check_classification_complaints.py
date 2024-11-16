@@ -9,8 +9,6 @@ from pathlib import Path
 
 import pandas as pd
 
-# TODO: Hvordan skal vi klassifisere klager?
-
 
 def check_classifications(labels_file):
     """Check classifications in labels_file."""
