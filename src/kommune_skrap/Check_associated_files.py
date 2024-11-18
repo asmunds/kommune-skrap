@@ -12,7 +12,9 @@ from pathlib import Path
 import pandas as pd
 
 
-def check_associated_files(labels_file: Path, prediction_file: Path):
+def check_associated_files(
+    labels_file: Path, prediction_file: Path, reassess: bool = False
+):
     """Check classifications in predictions file."""
     labels_df = pd.read_csv(labels_file)
     alread_labeled_files = [Path(path).stem for path in labels_df["filename"]]
@@ -29,6 +31,9 @@ def check_associated_files(labels_file: Path, prediction_file: Path):
         pdf_path = Path(row["filename"])
         # Check that we have not done this file already
         if str(pdf_path) in done_files:
+            continue
+        # If we are not reassessing, skip files that are already labeled
+        if not reassess and pdf_path.stem in alread_labeled_files:
             continue
         # Check that file exists
         if not pdf_path.exists():
@@ -55,32 +60,55 @@ def check_associated_files(labels_file: Path, prediction_file: Path):
             filenr = 0
         usef = Path(associated_files[filenr])
         # Check if file is already in labeled data
-        if usef.stem in alread_labeled_files:
+        if usef.stem in alread_labeled_files and len(associated_files) == 1:
             decision = labels_df.iloc[alread_labeled_files.index(usef.stem)]["label"]
             # print(usef.stem, ": ", decision.upper())
         # If not, ask user to label it
         else:
-            # Open pdf file for user to see
-            webbrowser.open(usef.absolute().as_uri())
+            # Open pdf files for user to see
+            for file in associated_files[::-1]:
+                webbrowser.open(Path(file).absolute().as_uri())
             label = input(
                 "Innvilget (g) / utsatt (u) / lagre (l) / avslått (): "
             ).lower()
-            if label == "g":
-                decision = "innvilget"
-            elif label == "u":
-                decision = "utsatt"
-            elif label == "l":
+            if label == "l":
                 break
             else:
-                decision = "avslått"
+                decision = decision_from_label(label)
+
         # Update the labeled data
-        for file in associated_files:
-            _decision = decision if file == usef else "utsatt"
+        for i, file in enumerate(associated_files):
+            if isinstance(decision, list):
+                _decision = decision[i]
+            else:
+                _decision = decision if file == usef else "utsatt"
             new_labels_data.append((file, _decision, Path(file).parts[-2]))
             done_files.append(file)
     # Save the updated labeled data
     new_labels_df = pd.DataFrame(new_labels_data, columns=["filename", "label", "date"])
-    new_labels_df.to_csv(Path("./data/training_data/labels_new.csv"), index=False)
+    if reassess:
+        new_file = Path("./data/training_data/labels_new.csv")
+        if new_file.exists():
+            sure = input("File already exists. Overwrite? (y/n): ").lower()
+            if sure == "n":
+                new_file_name = input("New file name (without path and suffix): ")
+                new_file = Path(f"./data/training_data/{new_file_name}.csv")
+        new_labels_df.to_csv(new_file, index=False)
+    else:
+        labels_df = pd.concat([labels_df, new_labels_df], ignore_index=True)
+        labels_df.to_csv(labels_file, index=False)
+
+
+def decision_from_label(label: str) -> str | list[str]:
+    """Return decision from label."""
+    if label == "g":
+        return "innvilget"
+    elif label == "u":
+        return "utsatt"
+    elif len(label) > 1:
+        return [decision_from_label(l) for l in label]
+    else:
+        return "avslått"
 
 
 def find_associated_files(
@@ -116,7 +144,7 @@ def find_associated_files(
     elif "Helgøya, behandling av klage på avslag" in filename:
         return []
     else:
-        print("\nWarning: No numeric code found in\n", filename)
+        print("\nWarning: No recognizable pattern found in\n", filename)
         pass
     return associated_files
 
