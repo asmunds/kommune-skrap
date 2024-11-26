@@ -11,11 +11,13 @@ from pathlib import Path
 
 import pandas as pd
 
+from kommune_skrap.classify_files import extract_text_from_pdf
+
 
 def check_associated_files(
     labels_file: Path, prediction_file: Path, reassess: bool = False
 ):
-    """Check classifications in predictions file."""
+    """Check classifications in predictions file, taking into account cases that are associated."""
     labels_df = pd.read_csv(labels_file)
     alread_labeled_files = [Path(path).stem for path in labels_df["filename"]]
     prediction_df = pd.read_csv(prediction_file)
@@ -43,30 +45,31 @@ def check_associated_files(
         associated_files = find_associated_files(
             filename=pdf_path.stem, date=row["date"], prediction_df=prediction_df
         )
+        unique_files = get_unique_files(associated_files=associated_files)
         # If there are associated files, ask user which to consider as the final decision
-        if len(associated_files) > 1:
+        if len(unique_files) > 1:
             print("----------------------")
-            for nr, file in enumerate(associated_files):
+            for nr, file in enumerate(unique_files):
                 print(f"{nr}) {file}")
             # filenr = input("Bruk fil nr? 0 () / 1 / 2 / osv...").lower()
             # if filenr == "":
             filenr = 0
             # else:
             #     filenr = int(filenr)
-        elif len(associated_files) == 0:
-            associated_files = [pdf_path]
+        elif len(unique_files) == 0:
+            unique_files = [pdf_path]
             filenr = 0
         else:
             filenr = 0
-        usef = Path(associated_files[filenr])
+        usef = Path(unique_files[filenr])
         # Check if file is already in labeled data
-        if usef.stem in alread_labeled_files and len(associated_files) == 1:
+        if usef.stem in alread_labeled_files and len(unique_files) == 1:
             decision = labels_df.iloc[alread_labeled_files.index(usef.stem)]["label"]
             # print(usef.stem, ": ", decision.upper())
         # If not, ask user to label it
         else:
             # Open pdf files for user to see
-            for file in associated_files[::-1]:
+            for file in unique_files[::-1]:
                 webbrowser.open(Path(file).absolute().as_uri())
             label = input(
                 "Innvilget (g) / utsatt (u) / lagre (l) / avslått (): "
@@ -77,11 +80,16 @@ def check_associated_files(
                 decision = decision_from_label(label)
 
         # Update the labeled data
-        for i, file in enumerate(associated_files):
-            if isinstance(decision, list):
-                _decision = decision[i]
+        i = 0
+        for file in associated_files:
+            if file not in unique_files:
+                _decision = "utsatt"
             else:
-                _decision = decision if file == usef else "utsatt"
+                if isinstance(decision, list):
+                    _decision = decision[i]
+                    i += 1
+                else:
+                    _decision = decision if file == usef else "utsatt"
             new_labels_data.append((file, _decision, Path(file).parts[-2]))
             done_files.append(file)
     # Save the updated labeled data
@@ -147,6 +155,21 @@ def find_associated_files(
         print("\nWarning: No recognizable pattern found in\n", filename)
         pass
     return associated_files
+
+
+def get_unique_files(associated_files: list) -> list:
+    """Find identical files, given by having identical content."""
+    hash_list = []
+    unique_files = []
+    for file in associated_files:
+        # Get tect for file
+        text = extract_text_from_pdf(Path(file))
+        # Get hash for text
+        text_hash = hash(text)
+        if text_hash not in hash_list:
+            hash_list.append(text_hash)
+            unique_files.append(file)
+    return unique_files
 
 
 if __name__ == "__main__":
