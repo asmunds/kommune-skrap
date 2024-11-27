@@ -45,6 +45,11 @@ def check_associated_files(
         associated_files = find_associated_files(
             filename=pdf_path.stem, date=row["date"], prediction_df=prediction_df
         )
+        associated_files = remove_labeled_files(
+            associated_files=associated_files,
+            alread_labeled_files=alread_labeled_files,
+            done_files=done_files,
+        )
         unique_files = get_unique_files(associated_files=associated_files)
         # If there are associated files, ask user which to consider as the final decision
         if len(unique_files) > 1:
@@ -170,6 +175,17 @@ def get_unique_files(associated_files: list) -> list:
             hash_list.append(text_hash)
             unique_files.append(file)
     return unique_files
+
+
+def remove_labeled_files(
+    associated_files: list, alread_labeled_files: list, done_files: list
+) -> list:
+    """Remove files that are already labeled."""
+    return [
+        file
+        for file in associated_files
+        if Path(file).stem not in alread_labeled_files and file not in done_files
+    ]
 
 
 if __name__ == "__main__":
