@@ -83,7 +83,9 @@ def check_associated_files(
                 break
             else:
                 decision = decision_from_label(label)
-
+                if len(decision) > 1 and len(decision) != len(associated_files):
+                    label = input("Feil antall bokstaver - prøv igjen!: ").lower()
+                    decision = decision_from_label(label)
         # Update the labeled data
         i = 0
         for file in associated_files:
