@@ -83,7 +83,7 @@ def check_associated_files(
                 break
             else:
                 decision = decision_from_label(label)
-                if len(decision) > 1 and len(decision) != len(associated_files):
+                if isinstance(decision, list) and len(decision) != len(unique_files):
                     label = input("Feil antall bokstaver - prøv igjen!: ").lower()
                     decision = decision_from_label(label)
         # Update the labeled data
@@ -96,7 +96,7 @@ def check_associated_files(
                     _decision = decision[i]
                     i += 1
                 else:
-                    _decision = decision if file == usef else "utsatt"
+                    _decision = decision if Path(file) == usef else "utsatt"
             new_labels_data.append((file, _decision, Path(file).parts[-2]))
             done_files.append(file)
     # Save the updated labeled data
