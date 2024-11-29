@@ -62,7 +62,7 @@ def check_associated_files(
             # else:
             #     filenr = int(filenr)
         elif len(unique_files) == 0:
-            unique_files = [pdf_path]
+            unique_files = associated_files = [pdf_path]
             filenr = 0
         else:
             filenr = 0
@@ -144,12 +144,12 @@ def find_associated_files(
                         ).date()
                         if abs((file_date - date).days) <= 700:
                             associated_files.append(row["filename"])
-    elif " - " in filename:
+    elif " - " in filename and "Klage" not in filename.split(" - ")[0]:
         address = filename.split(" - ")[0]
         for i, row in prediction_df.iterrows():
             if address in row["filename"]:
                 associated_files.append(row["filename"])
-    elif ", " in filename:
+    elif ", " in filename and "Klage" not in filename.split(", ")[0]:
         address = filename.split(", ")[0]
         for i, row in prediction_df.iterrows():
             if address in row["filename"]:
