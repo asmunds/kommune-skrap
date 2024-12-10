@@ -30,7 +30,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
-DOWNLOAD_DIR = Path("./data/")  # Directory to save downloaded PDF files
+DOWNLOAD_DIR = Path("./data/sogne")  # Directory to save downloaded PDF files
 KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 
@@ -46,7 +46,7 @@ def download_pdf(*, url, download_dir: Path, new_filename: str):
         filepath = download_dir / (new_filename + ".pdf")
         with open(filepath, "wb") as f:
             f.write(response.content)
-        print(f"Downloaded: {new_filename}.pdf")
+        print(f"Downloaded: {download_dir}/{new_filename}.pdf")
     else:
         print(f"Failed to download: {new_filename}.pdf")
 
@@ -67,15 +67,16 @@ def identify_keyword(*, section_title, keywords):
     return None
 
 
-def main(url: str) -> None:
+def main(url: str, redownload: bool = False) -> None:
     """Use selenium to scrape kommune data from the given url.
 
     Args:
         url (str): URL to scrape data from.
+        redownload (bool): Whether to redownload files that already exist.
     """
     # Create download directory if it doesn't exist (check if parent directory exists)
     if not os.path.exists(DOWNLOAD_DIR):
-        os.makedirs(DOWNLOAD_DIR, parents=False)
+        raise FileNotFoundError(f"Directory not found: {DOWNLOAD_DIR}")
 
     response = requests.get(url)
     if response.status_code != 200:
@@ -172,6 +173,14 @@ def main(url: str) -> None:
                 section_title=section_title, keywords=KEYWORDS
             )
             if keyword_found:
+                # Check if file exists, if so, skip
+                file_name = (
+                    DOWNLOAD_DIR
+                    / date_text
+                    / (section_title.replace("/", "_") + ".pdf")
+                )
+                if (not redownload) and file_name.exists():
+                    continue
                 # Get the new links that have appeared after clicking the plus sign
                 # Find links that are located in this row of the table
                 subpage_links = row.find_elements(By.XPATH, ".//a")
@@ -182,17 +191,36 @@ def main(url: str) -> None:
                     }
                     for link in subpage_links
                 ]
+                if all(
+                    [
+                        subpage_link.get("text") == ""
+                        for subpage_link in subpage_links_dict
+                    ]
+                ):
+                    continue
+                elif not any(
+                    [
+                        "Link til sak" in subpage_link.get("text")
+                        or "Saksfremlegg" in subpage_link.get("text")
+                        for subpage_link in subpage_links_dict
+                    ]
+                ):
+                    print("\nNOTE: No PDF link found for {new_href}\n")
                 # Loop through the new links to find the one that contains the PDF
                 for subpage_link in subpage_links_dict:
                     new_href = subpage_link.get("href")
-                    if (
-                        new_href
-                        and new_href.endswith("Pdf=false")
-                        and "Link til sak" in subpage_link.get("text")
+                    if new_href and (
+                        "Link til sak" in subpage_link.get("text")
+                        or "Saksfremlegg" in subpage_link.get("text")
                     ):
                         try:
-                            # Modify the URL to replace "Pdf=false" with "Pdf=true"
-                            pdf_url = new_href.replace("Pdf=false", "Pdf=true")
+                            if new_href.endswith("Pdf=false"):
+                                # Modify the URL to replace "Pdf=false" with "Pdf=true"
+                                pdf_url = new_href.replace("Pdf=false", "Pdf=true")
+                            else:
+                                print(
+                                    "\nNOTE: {new_href} does not end with Pdf=false\n"
+                                )
 
                             # Open the pdf link in a new tab
                             driver.execute_script("window.open();")
@@ -206,13 +234,20 @@ def main(url: str) -> None:
                             download_dir = DOWNLOAD_DIR / date_text
                             if not download_dir.exists():
                                 download_dir.mkdir(parents=False)
-
-                            # Download the PDF file
-                            download_pdf(
-                                url=pdf_url,
-                                download_dir=download_dir,
-                                new_filename=section_title.replace("/", "_"),
-                            )
+                            try:
+                                # Download the PDF file
+                                download_pdf(
+                                    url=pdf_url,
+                                    download_dir=download_dir,
+                                    new_filename=section_title.replace("/", "_"),
+                                )
+                            except Exception:
+                                # Try again...
+                                download_pdf(
+                                    url=pdf_url,
+                                    download_dir=download_dir,
+                                    new_filename=section_title.replace("/", "_"),
+                                )
                         except Exception as e:
                             print(f"Failed to download PDF: {pdf_url}, error: {e}")
                         finally:
