@@ -224,7 +224,7 @@ def main(url: str, redownload: bool = False) -> None:
                                 pdf_url = new_href.replace("Pdf=false", "Pdf=true")
                             else:
                                 print(
-                                    "\nNOTE: {new_href} does not end with Pdf=false\n"
+                                    f"\nNOTE: {new_href} does not end with Pdf=false\n"
                                 )
 
                             # Open the pdf link in a new tab
