@@ -30,7 +30,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
-DOWNLOAD_DIR = Path("./data/sogne")  # Directory to save downloaded PDF files
+DOWNLOAD_DIR = Path("./data/")  # Directory to save downloaded PDF files
 KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 
@@ -202,16 +202,21 @@ def main(url: str, redownload: bool = False) -> None:
                     [
                         "Link til sak" in subpage_link.get("text")
                         or "Saksfremlegg" in subpage_link.get("text")
+                        or "avslag på søknad" in subpage_link.get("text").lower()
                         for subpage_link in subpage_links_dict
                     ]
                 ):
-                    print("\nNOTE: No PDF link found for {new_href}\n")
+                    print(
+                        f"\nNOTE: No PDF link found for {section_title}\n"
+                        f"on {link_url}\n"
+                    )
                 # Loop through the new links to find the one that contains the PDF
                 for subpage_link in subpage_links_dict:
                     new_href = subpage_link.get("href")
                     if new_href and (
                         "Link til sak" in subpage_link.get("text")
                         or "Saksfremlegg" in subpage_link.get("text")
+                        or "avslag på søknad" in subpage_link.get("text").lower()
                     ):
                         try:
                             if new_href.endswith("Pdf=false"):
@@ -232,22 +237,19 @@ def main(url: str, redownload: bool = False) -> None:
 
                             # Make download directory if it doesn't exist
                             download_dir = DOWNLOAD_DIR / date_text
+                            new_filename = (
+                                section_title.replace("/", "_")
+                                .replace("\\", "")
+                                .replace('"', "")
+                            )
                             if not download_dir.exists():
                                 download_dir.mkdir(parents=False)
                             try:
                                 # Download the PDF file
-                                download_pdf(
-                                    url=pdf_url,
-                                    download_dir=download_dir,
-                                    new_filename=section_title.replace("/", "_"),
-                                )
+                                download_pdf(pdf_url, download_dir, new_filename)
                             except Exception:
                                 # Try again...
-                                download_pdf(
-                                    url=pdf_url,
-                                    download_dir=download_dir,
-                                    new_filename=section_title.replace("/", "_"),
-                                )
+                                download_pdf(pdf_url, download_dir, new_filename)
                         except Exception as e:
                             print(f"Failed to download PDF: {pdf_url}, error: {e}")
                         finally:
