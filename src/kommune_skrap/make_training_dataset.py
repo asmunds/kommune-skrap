@@ -50,6 +50,6 @@ def create_training_set(data_folder: Path, labels_file: Path):
 
 
 if __name__ == "__main__":
-    data_folder = Path("./data/training_data")
+    data_folder = Path("D:/kommune-skrap/data/training_data")
     labels_file = data_folder / "labels.csv"
     create_training_set(data_folder, labels_file)

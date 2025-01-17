@@ -57,7 +57,7 @@ def assess_predictions(labels_file, prediction_file):
 
 
 if __name__ == "__main__":
-    data_folder = Path("./data")
+    data_folder = Path("D:/kommune-skrap/data")
     labels_file = data_folder / "training_data/labels.csv"
     prediction_file = data_folder / "predictions.csv"
     assess_predictions(labels_file, prediction_file)

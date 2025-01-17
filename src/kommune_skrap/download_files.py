@@ -30,7 +30,7 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
-DOWNLOAD_DIR = Path("./data/")  # Directory to save downloaded PDF files
+DOWNLOAD_DIR = Path(r"D:\kommune-skrap\data/")  # Directory to save downloaded PDF files
 KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 

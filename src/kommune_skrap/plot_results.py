@@ -3,7 +3,7 @@ from pathlib import Path
 import matplotlib.pyplot as plt
 import pandas as pd
 
-data_folder = Path("./data")
+data_folder = Path("D:/kommune-skrap/data")
 labels_file = data_folder / "training_data/labels.csv"
 near_sea_file = data_folder / "training_data/near_sea.csv"
 

@@ -250,27 +250,48 @@ def predict_label(model, tokenizer, pdf_path):
     return "innvilget" if predictions == 1 else "avslått"
 
 
-def predict_all_files(model, tokenizer, data_folder: Path):
+def predict_all_files(
+    model, tokenizer, data_folder: Path, old_predictions: pd.DataFrame
+):
     """Predict the label of all PDF files in the data folder."""
     predictions = []
-    for subfolder in data_folder.iterdir():
-        if subfolder.is_dir() and subfolder.name != "training_data":
-            # print(subfolder.name)
-            for pdf_path in subfolder.iterdir():
-                if pdf_path.exists() and pdf_path.suffix == ".pdf":
-                    label = predict_label(model, tokenizer, pdf_path)
-                    predictions.append((pdf_path, label))
-    predictions_df = pd.DataFrame(predictions, columns=["filename", "predicted_label"])
-    predictions_df.to_csv(data_folder / "predictions.csv", index=False)
+    for subitem in data_folder.iterdir():
+        if subitem.is_dir() and subitem.name != "training_data":
+            old_predictions = predict_all_files(
+                model, tokenizer, subitem, old_predictions
+            )
+        elif subitem.is_file():
+            if subitem.exists() and subitem.suffix == ".pdf":
+                if str(subitem) in old_predictions["filename"].values:
+                    continue
+                if tokenizer and model:
+                    label = predict_label(model, tokenizer, subitem)
+                else:
+                    label = "?"
+                predictions.append((subitem, label))
+    new_predictions = pd.DataFrame(predictions, columns=["filename", "predicted_label"])
+    predictions_df = pd.concat([old_predictions, new_predictions], ignore_index=True)
+    return predictions_df
 
 
 if __name__ == "__main__":
-    data_folder = Path("./data")
+    data_folder = Path(r"D:/kommune-skrap/data")
     labels_file = data_folder / "training_data/labels.csv"
-    tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
-    training_data = load_training_set(labels_file)
-    model = train_model(training_data, tokenizer=tokenizer)
-    predict_all_files(model, tokenizer, data_folder)
+    # tokenizer = DistilBertTokenizer.from_pretrained("distilbert-base-uncased")
+    # training_data = load_training_set(labels_file)
+    # model = train_model(training_data, tokenizer=tokenizer)
+    old_predictions = pd.read_csv(data_folder / "predictions.csv")
+    old_predictions["filename"] = [
+        f[:6].replace("data", r"D:\kommune-skrap\data") + f[6:]
+        for f in old_predictions["filename"].values
+    ]
+    predictions_df = predict_all_files(
+        model=None,
+        tokenizer=None,
+        data_folder=data_folder,
+        old_predictions=old_predictions,
+    )
+    predictions_df.to_csv(data_folder / "new_predictions.csv", index=False)
 
     # # Load model and evaluate
     # tokenizer, encodings = get_tokenizer(

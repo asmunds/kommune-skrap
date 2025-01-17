@@ -102,12 +102,14 @@ def check_associated_files(
     # Save the updated labeled data
     new_labels_df = pd.DataFrame(new_labels_data, columns=["filename", "label", "date"])
     if reassess:
-        new_file = Path("./data/training_data/labels_new.csv")
+        new_file = Path("D:/kommune-skrap/data/training_data/labels_new.csv")
         if new_file.exists():
             sure = input("File already exists. Overwrite? (y/n): ").lower()
             if sure == "n":
                 new_file_name = input("New file name (without path and suffix): ")
-                new_file = Path(f"./data/training_data/{new_file_name}.csv")
+                new_file = Path(
+                    f"D:/kommune-skrap/data/training_data/{new_file_name}.csv"
+                )
         new_labels_df.to_csv(new_file, index=False)
     else:
         labels_df = pd.concat([labels_df, new_labels_df], ignore_index=True)
@@ -191,7 +193,7 @@ def remove_labeled_files(
 
 
 if __name__ == "__main__":
-    data_folder = Path("./data")
+    data_folder = Path("D:/kommune-skrap/data")
     labels_file = data_folder / "training_data/labels.csv"
     prediction_file = data_folder / "predictions.csv"
     check_associated_files(labels_file, prediction_file)

@@ -42,6 +42,6 @@ def check_classifications(labels_file):
 
 
 if __name__ == "__main__":
-    data_folder = Path("./data")
+    data_folder = Path("D:/kommune-skrap/data")
     labels_file = data_folder / "training_data/labels.csv"
     check_classifications(labels_file)

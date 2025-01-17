@@ -64,7 +64,7 @@ def assess_sea_proximity(labels_file, near_sea_file):
 
 
 if __name__ == "__main__":
-    data_folder = Path("./data")
+    data_folder = Path("D:/kommune-skrap/data")
     prediction_file = data_folder / "predictions.csv"
     near_sea_file = data_folder / "training_data" / "near_sea.csv"
     assess_sea_proximity(prediction_file, near_sea_file)
