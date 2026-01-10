@@ -30,7 +30,9 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
-DOWNLOAD_DIR = Path(r"D:\kommune-skrap\data/")  # Directory to save downloaded PDF files
+DOWNLOAD_DIR = Path(
+    r"D:\kommune-skrap\data/kristiansand"
+)  # Directory to save downloaded PDF files
 KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 
@@ -246,10 +248,18 @@ def main(url: str, redownload: bool = False) -> None:
                                 download_dir.mkdir(parents=False)
                             try:
                                 # Download the PDF file
-                                download_pdf(pdf_url, download_dir, new_filename)
+                                download_pdf(
+                                    url=pdf_url,
+                                    download_dir=download_dir,
+                                    new_filename=new_filename,
+                                )
                             except Exception:
                                 # Try again...
-                                download_pdf(pdf_url, download_dir, new_filename)
+                                download_pdf(
+                                    url=pdf_url,
+                                    download_dir=download_dir,
+                                    new_filename=new_filename,
+                                )
                         except Exception as e:
                             print(f"Failed to download PDF: {pdf_url}, error: {e}")
                         finally:

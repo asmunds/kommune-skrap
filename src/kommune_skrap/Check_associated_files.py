@@ -5,13 +5,13 @@ together. In the end, add the correct label to the training set.
 """
 
 import re
+import time
 import webbrowser
 from datetime import datetime
 from pathlib import Path
 
+import fitz
 import pandas as pd
-
-from kommune_skrap.classify_files import extract_text_from_pdf
 
 
 def check_associated_files(
@@ -21,16 +21,23 @@ def check_associated_files(
     labels_df = pd.read_csv(labels_file)
     alread_labeled_files = [Path(path).stem for path in labels_df["filename"]]
     prediction_df = pd.read_csv(prediction_file)
+    n_total = len(prediction_df)
+    n_already_labeled = len(alread_labeled_files)
     new_labels_data = []
     dates = [
         datetime.strptime(Path(pdf_path).parts[-2], "%d.%m-%Y").date()
         for pdf_path in prediction_df["filename"]
     ]
     prediction_df["date"] = dates
-    prediction_df = prediction_df.sort_values(by="date", ascending=False)
+    prediction_df = prediction_df.sort_values(
+        by="date", ascending=False, ignore_index=True
+    )
     done_files = []
-    for i, row in prediction_df.iterrows():
+    start_time = time.time()
+    print("Starting iteration")
+    for _, row in prediction_df.iterrows():
         pdf_path = Path(row["filename"])
+        print_progress(done_files, n_already_labeled, n_total, start_time)
         # Check that we have not done this file already
         if str(pdf_path) in done_files:
             continue
@@ -77,7 +84,7 @@ def check_associated_files(
             for file in unique_files[::-1]:
                 webbrowser.open(Path(file).absolute().as_uri())
             label = input(
-                "Innvilget (g) / utsatt (u) / lagre (l) / avslått (): "
+                "\nInnvilget (g) / utsatt (u) / lagre (l) / avslått (): ",
             ).lower()
             if label == "l":
                 break
@@ -146,8 +153,14 @@ def find_associated_files(
                         ).date()
                         if abs((file_date - date).days) <= 700:
                             associated_files.append(row["filename"])
-    elif " - " in filename and "Klage" not in filename.split(" - ")[0]:
-        address = filename.split(" - ")[0]
+    elif " - " in filename:
+        if (
+            "Klage" not in filename.split(" - ")[0]
+            and "dispensasjon" not in filename.split(" - ")[0].lower()
+        ):
+            address = filename.split(" - ")[0]
+        elif "dispensasjon" in filename.split(" - ")[0].lower():
+            address = " - ".join(filename.split(" - ")[1:])
         for i, row in prediction_df.iterrows():
             if address in row["filename"]:
                 associated_files.append(row["filename"])
@@ -166,6 +179,22 @@ def find_associated_files(
     return associated_files
 
 
+def print_progress(done_files, n_already_labeled, n_total, start_time):
+    """Print progress of labeling."""
+    n_done = len(done_files)
+    progress = (n_done + n_already_labeled) / n_total * 100
+    if n_done > 0:
+        eta = (
+            (time.time() - start_time)
+            / n_done
+            * (n_total - n_already_labeled - n_done)
+            / 60
+        )
+    else:
+        eta = pd.NA
+    print(f"{progress:.2f} %,  ETA: {eta:.1f} min", end="\r")
+
+
 def get_unique_files(associated_files: list) -> list:
     """Find identical files, given by having identical content."""
     hash_list = []
@@ -179,6 +208,31 @@ def get_unique_files(associated_files: list) -> list:
             hash_list.append(text_hash)
             unique_files.append(file)
     return unique_files
+
+
+def extract_text_from_pdf(pdf_path: Path) -> str:
+    """Extract text from a PDF file."""
+    doc = fitz.open(pdf_path)
+    text = ""
+    for page in doc:
+        text += page.get_text()
+        break  # Decision is usually on the first page
+    doc.close()
+
+    text = clean_text(text)
+
+    return text
+
+
+def clean_text(text: str) -> str:
+    """Remove everything but normal text, punctuation, and Nordic letters from a string."""
+    # Remove common formatting operators
+    text = re.sub(r"\n|\t|\r", " ", text)
+    # Remove everything but normal text, punctuation, and Nordic letters
+    text = re.sub(r"[^a-zA-Z0-9\s.,!?;:æøåÆØÅ]", "", text)
+    # Remove excess spaces
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
 
 
 def remove_labeled_files(
@@ -195,5 +249,6 @@ def remove_labeled_files(
 if __name__ == "__main__":
     data_folder = Path("D:/kommune-skrap/data")
     labels_file = data_folder / "training_data/labels.csv"
-    prediction_file = data_folder / "predictions.csv"
+    prediction_file = data_folder / "kristiansand_files.csv"
     check_associated_files(labels_file, prediction_file)
+    # TODO: Deretter: Sjekk om de er i nærheten av sjøen
