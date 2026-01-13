@@ -4,9 +4,9 @@ import matplotlib.pyplot as plt
 import pandas as pd
 from matplotlib import colormaps
 
-data_folder = Path("D:/kommune-skrap/data")
-labels_file = data_folder / "training_data/labels.csv"
-near_sea_file = data_folder / "training_data/near_sea.csv"
+data_folder = Path("D:/kommune-skrap/data/kristiansand")
+labels_file = data_folder / "labels.csv"
+near_sea_file = data_folder / "near_sea.csv"
 
 # Load data
 df = pd.read_csv(labels_file, parse_dates=["date"])
@@ -34,7 +34,7 @@ df["year"] = df["date"].dt.year
 df["month"] = df["date"].dt.month
 df["day"] = df["date"].dt.day
 # Drop 2017 data
-df = df[df["year"] > 2007]
+df = df[(df["year"] > 2007) & (df["year"] < 2026)]
 df.set_index(["row_number", "year", "month", "day"], inplace=True)
 df.drop(columns=["date"], inplace=True)
 

@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from kommune_skrap.classify_files import extract_text_from_pdf
+from kommune_skrap.Check_associated_files import extract_text_from_pdf
 
 
 def assess_sea_proximity(labels_file, near_sea_file):
@@ -64,7 +64,7 @@ def assess_sea_proximity(labels_file, near_sea_file):
 
 
 if __name__ == "__main__":
-    data_folder = Path("D:/kommune-skrap/data")
-    prediction_file = data_folder / "predictions.csv"
-    near_sea_file = data_folder / "training_data" / "near_sea.csv"
-    assess_sea_proximity(prediction_file, near_sea_file)
+    data_folder = Path("D:/kommune-skrap/data/kristiansand")
+    labels_file = data_folder / "labels.csv"
+    near_sea_file = data_folder / "near_sea.csv"
+    assess_sea_proximity(labels_file, near_sea_file)
