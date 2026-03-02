@@ -26,17 +26,9 @@ def add_files_to_predictions_file(data_folder: Path, old_predictions: pd.DataFra
 if __name__ == "__main__":
     root_folder = Path(r"D:/kommune-skrap/data")
     data_folder = root_folder / "kristiansand"
-    old_predictions = pd.read_csv(root_folder / "predictions.csv")
-    old_predictions["filename"] = [
-        (
-            f.replace(r"D:\kommune-skrap\data", r"D:\kommune-skrap\data\kristiansand")
-            if "sogne" not in f[:28] and "sogndalen" not in f[:33]
-            else f
-        )
-        for f in old_predictions["filename"].values
-    ]
+    old_predictions = pd.read_csv(root_folder / "kristiansand_files.csv")
     predictions_df = add_files_to_predictions_file(
         data_folder=data_folder,
         old_predictions=old_predictions,
     )
-    predictions_df.to_csv(root_folder / "new_predictions.csv", index=False)
+    predictions_df.to_csv(root_folder / "new_kristiansand_files.csv", index=False)

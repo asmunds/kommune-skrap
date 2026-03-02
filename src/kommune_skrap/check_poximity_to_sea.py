@@ -6,7 +6,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from kommune_skrap.Check_associated_files import extract_text_from_pdf
+from kommune_skrap.utils import extract_text_from_url
 
 
 def assess_sea_proximity(labels_file, near_sea_file):
@@ -27,7 +27,7 @@ def assess_sea_proximity(labels_file, near_sea_file):
             continue
         if pdf_path.exists():
             # Extract text from the PDF
-            text = extract_text_from_pdf(pdf_path)
+            text = extract_text_from_url(pdf_path)
             # Check for key words
             if (
                 "100 m" in text

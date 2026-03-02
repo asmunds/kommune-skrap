@@ -1,6 +1,6 @@
 """
-This module provides functionality to scrape and download PDF files from a specified URL.
-It uses Selenium to interact with the web page and Requests to download the files.
+This module provides functionality to scrape PDF files from a specified URL.
+It uses Selenium to interact with the web page and collects file information into a list.
 Author:
     Åsmund Frantzen Skomedal
 Copyright:
@@ -9,41 +9,41 @@ License:
     MIT
 Constants:
     URL (str): The URL to scrape data from.
-    DOWNLOAD_DIR (Path): The directory to save downloaded PDF files.
+    DOWNLOAD_DIR (Path): The directory associated with downloaded PDF files.
     KEYWORDS (list): List of keywords to search for in the scraped data.
 Functions:
-    download_pdf(*, url, download_dir: Path, new_filename: str):
-        Download a PDF file from the given URL to the specified directory.
     identify_keyword(*, section_title, keywords):
         Identify which keyword is present in the section title.
-    main(url: str) -> None:
+    main(url: str) -> list:
         Use Selenium to scrape kommune data from the given URL.
+        Returns a list of tuples (filename, url).
 """
 
 import os
 import pickle
 from pathlib import Path
 
+import pandas as pd
 import requests
 from selenium import webdriver
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 
-from kommune_skrap.utils import download_pdf, identify_keyword
+from kommune_skrap.utils import extract_text_from_url
 
 URL = r"https://politiskagenda.kristiansand.kommune.no/"
-DOWNLOAD_DIR = Path(
-    r"D:\kommune-skrap\data/kristiansand"
-)  # Directory to save downloaded PDF files
+DOWNLOAD_DIR = Path(r"D:\kommune-skrap\data/kristiansand")
 KEYWORDS = ["dispensasjon"]  # Keywords to search for in the scraped data
 
 
-def main(url: str, redownload: bool = False) -> None:
+def main(url: str) -> list:
     """Use selenium to scrape kommune data from the given url.
 
     Args:
         url (str): URL to scrape data from.
-        redownload (bool): Whether to redownload files that already exist.
+
+    Returns:
+        list: A list of tuples (filename, url) for each file found.
     """
     # Create download directory if it doesn't exist (check if parent directory exists)
     if not os.path.exists(DOWNLOAD_DIR):
@@ -103,10 +103,10 @@ def main(url: str, redownload: bool = False) -> None:
         with open(DOWNLOAD_DIR / "all_link_data_list.pkl", "wb") as f:
             pickle.dump(all_link_data_list, f)
 
-    # Make empty list of all files downloaded
-    downloaded_files = []
+    # Make empty list for all file tuples (filename, url)
+    files_list = []
 
-    # Loop through all links to find the relevant data
+    # Prompt the user for input to continue or exit
     for link_data in all_link_data_list:
         link_url = link_data.get("url")
         date_text = link_data.get("date").replace("/", ".")
@@ -143,18 +143,11 @@ def main(url: str, redownload: bool = False) -> None:
             ).text
 
             # Use the identify_keyword function to check for keywords in the section title
-            keyword_found = identify_keyword(
-                section_title=section_title, keywords=KEYWORDS
-            )
-            if keyword_found:
-                # Check if file exists, if so, skip
-                file_name = (
-                    DOWNLOAD_DIR
-                    / date_text
-                    / (section_title.replace("/", "_") + ".pdf")
-                )
-                if (not redownload) and file_name.exists():
-                    continue
+            # keyword_found = identify_keyword(
+            #     section_title=section_title, keywords=KEYWORDS
+            # )
+            # if keyword_found:
+            if True:  # Check all sections, not just those with keywords
                 # Get the new links that have appeared after clicking the plus sign
                 # Find links that are located in this row of the table
                 subpage_links = row.find_elements(By.XPATH, ".//a")
@@ -201,16 +194,20 @@ def main(url: str, redownload: bool = False) -> None:
                                     f"\nNOTE: {new_href} does not end with Pdf=false\n"
                                 )
 
-                            # Open the pdf link in a new tab
-                            driver.execute_script("window.open();")
-                            driver.switch_to.window(driver.window_handles[-1])
-                            driver.get(pdf_url)
+                            # Extract text from the PDF to check if it contains the keyword "dispensasjon"
+                            pdf_text = extract_text_from_url(pdf_url)
+                            keyword_in_pdf = any(
+                                keyword.lower() in pdf_text.lower()
+                                for keyword in KEYWORDS
+                            )
 
-                            # Wait until the PDF is loaded
-                            wait.until(lambda driver: driver.current_url != link_url)
+                            # Only proceed if the keyword is found in the PDF
+                            if not keyword_in_pdf:
+                                print(
+                                    f"Skipping {section_title}: keyword not found in PDF"
+                                )
+                                continue
 
-                            # Make download directory if it doesn't exist
-                            download_dir = DOWNLOAD_DIR / date_text
                             # Set filename
                             new_filename = (
                                 section_title.replace("/", "_")
@@ -219,38 +216,29 @@ def main(url: str, redownload: bool = False) -> None:
                             )
                             # Add number to filename if file already exists
                             count = sum(
-                                str(date_text + new_filename) in f
-                                for f in downloaded_files
+                                new_filename in f for f in [f[1] for f in files_list]
                             )
                             if count > 0:
                                 new_filename = f"{new_filename}_{count}"
-                            if not download_dir.exists():
-                                download_dir.mkdir(parents=False)
-                            try:
-                                # Download the PDF file
-                                download_pdf(
-                                    url=pdf_url,
-                                    download_dir=download_dir,
-                                    new_filename=new_filename,
-                                )
-                            except Exception:
-                                # Try again...
-                                download_pdf(
-                                    url=pdf_url,
-                                    download_dir=download_dir,
-                                    new_filename=new_filename,
-                                )
-                            downloaded_files.append(str(date_text + new_filename))
+
+                            # Add the file tuple (filename, url) to the list
+                            files_list.append(
+                                (date_text, new_filename, pdf_url, link_url)
+                            )
+                            print(f"Added to list: {new_filename}")
                         except Exception as e:
-                            print(f"Failed to download PDF: {pdf_url}, error: {e}")
-                        finally:
-                            # Close the PDF window/tab and switch back to the original window/tab
-                            driver.close()
-                            driver.switch_to.window(driver.window_handles[-1])
+                            print(f"Failed to process PDF: {new_href}, error: {e}")
 
         driver.close()  # Close this window
         driver.switch_to.window(driver.window_handles[0])
 
+    return files_list
+
 
 if __name__ == "__main__":
-    main(url=URL, redownload=True)
+    files = main(url=URL)
+    print(f"\nFound {len(files)} files")
+    files_df = pd.DataFrame(
+        files, columns=["Dato", "Filnavn", "URL", "Link til dagsorden"]
+    )
+    files_df.to_csv(DOWNLOAD_DIR / "file_links_2025.csv", index=False)

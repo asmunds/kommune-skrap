@@ -12,11 +12,6 @@ near_sea_file = data_folder / "near_sea.csv"
 df = pd.read_csv(labels_file, parse_dates=["date"])
 df_ns = pd.read_csv(near_sea_file)
 
-df_ns["filename"] = [
-    f[:5].replace("data\\", "D:\\kommune-skrap\\data\\") + f[5:]
-    for f in df_ns["filename"]
-]
-
 # Get whether the file is in Søgne or Sogndalen or not
 df["filepath"] = [Path(f) for f in df["filename"]]
 df["in_søgne"] = [p.parts[3] == "sogne" for p in df.filepath]
