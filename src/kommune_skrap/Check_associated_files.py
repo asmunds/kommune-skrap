@@ -4,7 +4,6 @@ another file, meaning they are concerning the same dispensation case, consider
 together. In the end, add the correct label to the training set.
 """
 
-import re
 import time
 import webbrowser
 from datetime import datetime
@@ -12,7 +11,7 @@ from pathlib import Path
 
 import pandas as pd
 
-from kommune_skrap.utils import extract_text_from_url, filter_ignored_filenames
+from kommune_skrap.utils import extract_text_from_url, filter_ignored_filenames, find_associated_files
 
 
 def check_associated_files(
@@ -22,7 +21,9 @@ def check_associated_files(
     if labels_file.exists():
         labels_df = pd.read_csv(labels_file)
     else:
-        labels_df = pd.DataFrame(columns=["Filnavn", "Avgjørelse", "Dato"])
+        labels_df = pd.DataFrame(
+            columns=["Filnavn", "Avgjørelse", "Dato", "URL", "Hash"]
+        )
     already_labeled_files = labels_df["Filnavn"].tolist()
     all_files = pd.read_csv(all_files_with_links)
     # Remove files whose name contains any entry from the ignore list
@@ -51,23 +52,19 @@ def check_associated_files(
         associated_files = find_associated_files(
             filename=filename, date=row["Dato"], all_files=all_files
         )
+        if not associated_files.empty:
+            associated_files_hash = hash(tuple(associated_files["Filnavn"]))
+        # Get unique files among the associated files by looking at the content
         unique_files = get_unique_files(associated_files=associated_files)
-        # If there are associated files, ask user which to consider as the final decision
-        if len(unique_files) > 1:
-            print("\n----------------------")
-            for nr, row in enumerate(unique_files["Filnavn"]):
-                print(f"{nr}) {row}")
-            # filenr = input("Bruk fil nr? 0 () / 1 / 2 / osv...").lower()
-            # if filenr == "":
-            filenr = 0
-            # else:
-            #     filenr = int(filenr)
-        elif len(unique_files) == 0:
+        # If there are no associated files, we just need to label the file in consideration
+        if len(unique_files) == 0:
             unique_files = associated_files = pd.DataFrame([row])
-            filenr = 0
-        else:
-            filenr = 0
-        usef = unique_files.iloc[filenr]
+        # List files in consideration
+        print("\n----------------------")
+        for nr, row in enumerate(unique_files["Filnavn"]):
+            print(f"{nr}) {row}")
+        # Use the first file as the main file to label (the others will be labeled "utsatt" if not explicitly labeled otherwise)
+        usef = unique_files.iloc[0]
         # Check if file is already in labeled data
         if usef["Filnavn"] in already_labeled_files and len(unique_files) == 1:
             decision = labels_df.iloc[already_labeled_files.index(usef["Filnavn"])][
@@ -100,11 +97,19 @@ def check_associated_files(
                     i += 1
                 else:
                     _decision = decision if all(row == usef) else "utsatt"
-            new_labels_data.append((row["Filnavn"], _decision, row["Dato"]))
+            new_labels_data.append(
+                (
+                    row["Filnavn"],
+                    _decision,
+                    row["Dato"],
+                    row["URL"],
+                    associated_files_hash,
+                )
+            )
             done_files.append(row["Filnavn"])
     # Save the updated labeled data
     new_labels_df = pd.DataFrame(
-        new_labels_data, columns=["Filnavn", "Avgjørelse", "Dato"]
+        new_labels_data, columns=["Filnavn", "Avgjørelse", "Dato", "URL", "Hash"]
     )
     if reassess:
         new_file = data_folder / "labels_new.csv"
@@ -121,56 +126,18 @@ def check_associated_files(
 
 def decision_from_label(label: str) -> str | list[str]:
     """Return decision from label."""
-    if label == "g":
-        return "innvilget"
-    elif label == "u":
-        return "utsatt"
-    elif len(label) > 1:
-        return [decision_from_label(l) for l in label]
-    else:
-        return "avslått"
 
+    def single_decision(single_label: str) -> str:
+        if single_label == "g":
+            return "innvilget"
+        elif single_label == "u":
+            return "utsatt"
+        else:
+            return "avslått"
 
-def find_associated_files(
-    filename: str, date: datetime, all_files: pd.DataFrame
-) -> pd.DataFrame:
-    """Find associated files, given by sharing a numeric code in the filename."""
-    associated_files = []
-    # Get numeric code from filename by looking for numbers connected with at least one _
-    numeric_code = re.findall(r"\d+(?:_\d+)+", filename)
-    if numeric_code:
-        for code in numeric_code:
-            for _, row in all_files.iterrows():
-                if code in re.findall(r"\d+(?:_\d+)+", row["Filnavn"]):
-                    if row["Filnavn"] not in [a["Filnavn"] for a in associated_files]:
-                        # Make sure the file is not too far away in time
-                        file_date = row["Dato"]
-                        if abs((file_date - date).days) <= 700:
-                            associated_files.append(row)
-    elif " - " in filename:
-        if (
-            "Klage" not in filename.split(" - ")[0]
-            and "dispensasjon" not in filename.split(" - ")[0].lower()
-        ):
-            address = filename.split(" - ")[0]
-        elif "dispensasjon" in filename.split(" - ")[0].lower():
-            address = " - ".join(filename.split(" - ")[1:])
-        for _, row in all_files.iterrows():
-            if address in row["Filnavn"]:
-                associated_files.append(row)
-    elif ", " in filename and "Klage" not in filename.split(", ")[0]:
-        address = filename.split(", ")[0]
-        for _, row in all_files.iterrows():
-            if address in row["Filnavn"]:
-                associated_files.append(row)
-    elif "Dispensasjon til å spille musikk til kl. 02.00" in filename:
-        return pd.DataFrame()
-    elif "Helgøya, behandling av klage på avslag" in filename:
-        return pd.DataFrame()
-    else:
-        print("\nWarning: No recognizable pattern found in\n", filename)
-        pass
-    return pd.DataFrame(associated_files)
+    if len(label) > 1:
+        return [single_decision(char) for char in label]
+    return single_decision(label)
 
 
 def print_progress(done_files, n_already_labeled, n_total, start_time):

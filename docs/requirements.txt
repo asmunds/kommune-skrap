@@ -10,3 +10,4 @@ transformers[torch]
 pymupdf
 googletrans-modified
 matplotlib
+openpyxl

@@ -1,6 +1,7 @@
 """Common utility functions shared across the kommune_skrap package."""
 
 import re
+from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 
@@ -50,7 +51,7 @@ def filter_ignored_filenames(
     if ignore_filenames is None:
         ignore_filenames = load_ignore_filenames()
     pattern = "|".join(ignore_filenames)
-    mask = df[col].str.contains(pattern, na=False)
+    mask = df[col].str.contains(pattern, na=False, case=False)
     return df[~mask].reset_index(drop=True)
 
 
@@ -105,6 +106,49 @@ def identify_keyword(*, section_title: str, keywords: list[str]) -> str | None:
         if keyword in section_title.lower():
             return keyword
     return None
+
+
+def find_associated_files(
+    filename: str, date: datetime, all_files: pd.DataFrame
+) -> pd.DataFrame:
+    """Find associated files, given by sharing a numeric code in the filename."""
+    associated_files = []
+    # Get numeric code from filename by looking for numbers connected with at least one _
+    numeric_code = re.findall(r"\d+(?:_\d+)+", filename)
+    if numeric_code:
+        for code in numeric_code:
+            for _, row in all_files.iterrows():
+                if code in re.findall(r"\d+(?:_\d+)+", row["Filnavn"]):
+                    if row["Filnavn"] not in [a["Filnavn"] for a in associated_files]:
+                        # Make sure the file is not too far away in time
+                        file_date = row["Dato"]
+                        if abs((file_date - date).days) <= 700:
+                            associated_files.append(row)
+    elif " - " in filename or " – " in filename:
+        _filename = filename.replace(" – ", " - ")
+        if (
+            "klage" not in _filename.split(" - ")[0].lower()
+            and "dispensasjon" not in _filename.split(" - ")[0].lower()
+        ):
+            address = _filename.split(" - ")[0]
+        elif "dispensasjon" in _filename.split(" - ")[0].lower():
+            address = " - ".join(_filename.split(" - ")[1:])
+        for _, row in all_files.iterrows():
+            if address in row["Filnavn"].replace(" – ", " - "):
+                associated_files.append(row)
+    elif ", " in filename and "klage" not in filename.split(", ")[0].lower():
+        address = filename.split(", ")[0]
+        for _, row in all_files.iterrows():
+            if address in row["Filnavn"]:
+                associated_files.append(row)
+    elif "Dispensasjon til å spille musikk til kl. 02.00" in filename:
+        return pd.DataFrame()
+    elif "Helgøya, behandling av klage på avslag" in filename:
+        return pd.DataFrame()
+    else:
+        print("\nWarning: No recognizable pattern found in\n", filename)
+        pass
+    return pd.DataFrame(associated_files)
 
 
 def download_pdf(*, url: str, download_dir: Path, new_filename: str) -> None:
